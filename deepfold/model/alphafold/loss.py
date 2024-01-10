@@ -312,7 +312,7 @@ def supervised_chi_loss(
     
     #Modifying started by JSG.... for applying conditioned torsion angle loss...
     sq_chi_error = sq_chi_error **(1/4)
-    max_value_of_loss = torch.sqrt(2)
+    max_value_of_loss = torch.sqrt(torch.tensor(2))
     
     chi1_error = sq_chi_error[...,0]
     chi2_error = sq_chi_error[...,1]
