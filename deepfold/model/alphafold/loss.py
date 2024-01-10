@@ -309,9 +309,25 @@ def supervised_chi_loss(
 
     # The ol' switcheroo
     sq_chi_error = sq_chi_error.permute(*range(len(sq_chi_error.shape))[1:-2], 0, -2, -1)
-
+    
+    #Modifying started by JSG.... for applying conditioned torsion angle loss...
+    sq_chi_error = sq_chi_error **(1/4)
+    max_value_of_loss = torch.sqrt(2)
+    
+    chi1_error = sq_chi_error[...,0]
+    chi2_error = sq_chi_error[...,1]
+    chi3_error = sq_chi_error[...,2]
+    chi4_error = sq_chi_error[...,3]
+    
+    chi2_error = (chi1_error + chi2_error) - (chi1_error * chi2_error)/l_max
+    chi3_error = (chi2_error + chi3_error) - (chi2_error * chi3_error)/l_max
+    chi4_error = (chi3_error + chi4_error) - (chi3_error * chi4_error)/l_max
+    
+    sq_chi_error = torch.cat([chi1_error[...,None],chi2_error[...,None], chi3_error[...,None], chi4_error[...,None]], axis = -1)
+        
+    #modifying by JSG .. is ended... 240110
     sq_chi_loss = masked_mean(chi_mask[..., None, :, :], sq_chi_error, dim=(-1, -2, -3))
-
+    
     loss = chi_weight * sq_chi_loss
 
     angle_norm = torch.sqrt(torch.sum(unnormalized_angles_sin_cos**2, dim=-1) + eps)
