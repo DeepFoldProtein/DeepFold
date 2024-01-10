@@ -305,7 +305,7 @@ def supervised_chi_loss(
     true_chi_shifted = shifted_mask * true_chi
     sq_chi_error = torch.sum((true_chi - pred_angles) ** 2, dim=-1)
     sq_chi_error_shifted = torch.sum((true_chi_shifted - pred_angles) ** 2, dim=-1)
-    sq_chi_error = torch.minimum(sq_chi_error, sq_chi_error_shifted)
+    sq_chi_error = torch.minimum(sq_chi_error, sq_chi_error_shifted) + 1e-4
 
     # The ol' switcheroo
     sq_chi_error = sq_chi_error.permute(*range(len(sq_chi_error.shape))[1:-2], 0, -2, -1)
