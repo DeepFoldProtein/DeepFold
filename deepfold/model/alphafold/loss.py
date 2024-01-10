@@ -319,9 +319,9 @@ def supervised_chi_loss(
     chi3_error = sq_chi_error[...,2]
     chi4_error = sq_chi_error[...,3]
     
-    chi2_error = (chi1_error + chi2_error) - (chi1_error * chi2_error)/l_max
-    chi3_error = (chi2_error + chi3_error) - (chi2_error * chi3_error)/l_max
-    chi4_error = (chi3_error + chi4_error) - (chi3_error * chi4_error)/l_max
+    chi2_error = (chi1_error + chi2_error) - (chi1_error * chi2_error)/max_value_of_loss
+    chi3_error = (chi2_error + chi3_error) - (chi2_error * chi3_error)/max_value_of_loss
+    chi4_error = (chi3_error + chi4_error) - (chi3_error * chi4_error)/max_value_of_loss
     
     sq_chi_error = torch.cat([chi1_error[...,None],chi2_error[...,None], chi3_error[...,None], chi4_error[...,None]], axis = -1)
         
