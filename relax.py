@@ -34,7 +34,9 @@ def relax_protein(
         residue_index = np.asarray(summary["residue_index"])
         plddt = np.asarray(summary["plddt"])
     else:
-        chain_index = unrelaxed_protein.chain_index.copy()
+        if unrelaxed_protein.chain_index is not None:
+            chain_index = unrelaxed_protein.chain_index.copy()
+        chain_index = None
         residue_index = unrelaxed_protein.residue_index.copy()
         plddt = unrelaxed_protein.b_factors.copy()
 

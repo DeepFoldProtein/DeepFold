@@ -8,7 +8,7 @@ import signal
 import time
 from functools import partial
 from pathlib import Path
-from typing import Tuple
+from typing import Any, Tuple
 
 import numpy as np
 import torch
@@ -182,17 +182,17 @@ def get_preset_opts(preset: str) -> Tuple[str, Tuple[dict, dict, dict]]:
     enable_templates = not any(preset.endswith(x) for x in ["_3", "_4", "_5"]) or is_multimer
     fuse_projection_weights = preset.endswith("multimer_v3")
 
-    model_cfg_kwargs = dict(
+    model_cfg_kwargs: dict[str, Any] = dict(
         is_multimer=is_multimer,
         enable_ptm=enable_ptm,
         enable_templates=enable_templates,
         inference_chunk_size=4,
         inference_block_size=256,
     )
-    feat_cfg_kwargs = dict(
+    feat_cfg_kwargs: dict[str, Any] = dict(
         is_multimer=is_multimer,
     )
-    import_kwargs = dict(
+    import_kwargs: dict[str, Any] = dict(
         is_multimer=is_multimer,
         enable_ptm=enable_ptm,
         enable_templates=enable_templates,
@@ -504,10 +504,10 @@ def predict(args: argparse.Namespace) -> None:
         **import_kwargs,
     )
 
+    tiem_begin = time.perf_counter()
     if dist.is_master_process():
         logger.info(f"seqlen={seqlen} -> {batch['seq_mask'].shape[-2]}")
         logger.info("Start inference procedure:")
-        tiem_begin = time.perf_counter()
         if args.save_recycle:
             recycle_outpath = args.output_dirpath / f"recycle_{model_name}{suffix}"
             recycle_outpath.mkdir(parents=True, exist_ok=True)
@@ -534,8 +534,8 @@ def predict(args: argparse.Namespace) -> None:
         torch.cuda.empty_cache()
         torch.distributed.barrier()
 
+    time_elapsed = time.perf_counter() - tiem_begin
     if dist.is_master_process():
-        time_elapsed = time.perf_counter() - tiem_begin
         logger.info(f"Time elapsed: {time_elapsed:.2f} sec")
         logger.info(f"CUDA max memory allocated: {torch.cuda.max_memory_allocated() / 1024/ 1024:.2f} MB")
 
