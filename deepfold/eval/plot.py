@@ -1,10 +1,11 @@
 from typing import Dict, List, Optional, Tuple
 
-import matplotlib as mpl
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib.axes import Axes
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import LinearSegmentedColormap, Normalize
+from matplotlib.figure import Figure
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import deepfold.common.residue_constants as rc
@@ -15,18 +16,20 @@ from deepfold.eval.msa import compute_neff_v2 as compute_neff
 def _set_size(
     w: float,
     h: float,
-    ax: plt.Axes | None = None,
+    ax: Axes | None = None,
 ):
     """w, h: width, height in inches"""
     if not ax:
         ax = plt.gca()
-    l = ax.figure.subplotpars.left
-    r = ax.figure.subplotpars.right
-    t = ax.figure.subplotpars.top
-    b = ax.figure.subplotpars.bottom
+    fig = ax.get_figure()
+    assert fig is not None
+    l = fig.subplotpars.left
+    r = fig.subplotpars.right
+    t = fig.subplotpars.top
+    b = fig.subplotpars.bottom
     figw = float(w) / (r - l)
     figh = float(h) / (t - b)
-    ax.figure.set_size_inches(figw, figh)
+    fig.set_size_inches(figw, figh)
 
 
 def find_cluster_boundaries(a: np.ndarray) -> List[Tuple[int, int, int]]:
@@ -52,7 +55,7 @@ def plot_distogram(
     ncols: int = 5,
     sort: bool = False,
     fig_kwargs: dict = dict(),
-) -> plt.Figure:
+) -> Figure:
     num_models = len(outputs)
     nrows = int((num_models + ncols + 1) / ncols) * 2
     fig_kwargs.update(
@@ -126,7 +129,7 @@ def plot_predicted_alignment_error(
     outputs: dict,
     asym_id: Optional[np.ndarray] = None,
     fig_kwargs: dict = dict(),
-) -> plt.Figure:
+) -> Figure:
     num_models = len(outputs)
     fig_kwargs.update(
         {
@@ -173,7 +176,7 @@ def plot_plddt(
     asym_id: Optional[np.ndarray] = None,
     scale_with_len: bool = False,
     fig_kwargs: dict = dict(),
-) -> plt.Figure:
+) -> Figure:
     # Scale with the length
     scale = 1
     if scale_with_len:
@@ -232,7 +235,7 @@ def plot_msa(
     sort_lines: bool = True,
     dpi: float = 150.0,
     scale_with_len: bool = False,
-) -> plt.Figure:
+) -> Figure:
     scale = 1
     seq = feature_dict["msa"][0]
     if scale_with_len:

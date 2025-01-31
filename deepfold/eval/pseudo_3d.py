@@ -4,8 +4,11 @@ import matplotlib.cm
 import matplotlib.patheffects
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib.axes import Axes
 from matplotlib.collections import LineCollection
 from matplotlib.colors import Colormap, ListedColormap
+from matplotlib.figure import Figure
+from matplotlib.text import Text
 
 from deepfold.common import protein
 from deepfold.common import residue_constants as rc
@@ -84,7 +87,7 @@ def kabsch(
 def _plot_pseudo_3d(
     xyz: np.ndarray,
     c: np.ndarray | None = None,
-    ax: plt.Axes | None = None,
+    axes: Axes | None = None,
     chain_break_cut: float | None = 5.0,
     cmap: str | Colormap = "gist_rainbow",
     linewidth: float = 2.0,
@@ -92,7 +95,7 @@ def _plot_pseudo_3d(
     cmax: float | None = None,
     zmin: float | None = None,
     zmax: float | None = None,
-) -> plt.Axes:
+) -> Axes:
 
     def rescale(
         a: np.ndarray,
@@ -100,15 +103,13 @@ def _plot_pseudo_3d(
         amax: Optional[float] = None,
     ) -> np.ndarray:
         a = a.copy()
-        if amin is None:
-            amin = a.min()
-        if amax is None:
-            amax = a.max()
+        a_min = a.min() if amin is None else amin
+        a_max = a.max() if amax is None else amax
 
-        a[a < amin] = amin
-        a[a > amax] = amax
+        a[a < a_min] = a_min
+        a[a > a_max] = a_max
 
-        return (a - amin) / (amax - amin)
+        return (a - a_min) / (a_max - a_min)
 
     # Segment
     xyz = np.asarray(xyz)
@@ -147,12 +148,13 @@ def _plot_pseudo_3d(
     colors[:, :3] = colors[:, :3] * shade
 
     set_limit = False
-    if ax is None:
+    if axes is None:
         fig, ax = plt.subplots()
         fig.set_figwidth(5)
         fig.set_figheight(5)
         set_limit = True
     else:
+        ax = axes
         fig = ax.get_figure()
         if ax.get_xlim() == (0, 1):
             set_limit = True
@@ -166,19 +168,21 @@ def _plot_pseudo_3d(
     ax.set_aspect("equal")
 
     # Linewidths
-    width = fig.bbox_inches.width * ax.get_position().width
+    assert fig is not None
+    width = fig.get_figwidth() * ax.get_position().width
     linewidths = linewidth * 72 * width / np.diff(ax.get_xlim())
     lines = LineCollection(
-        seg_xy[order],
+        seg_xy[order].tolist(),
         colors=colors[order],
         linewidths=linewidths,
         path_effects=[matplotlib.patheffects.Stroke(capstyle="round")],
     )
+    ax.add_collection(lines)
 
-    return ax.add_collection(lines)
+    return ax
 
 
-def _add_text(text: str, ax: plt.Axes) -> plt.Text:
+def _add_text(text: str, ax: Axes) -> Text:
     return plt.text(
         0.5,
         1.01,
@@ -197,11 +201,13 @@ def plot_protein(
     dpi: float = 150.0,
     best_view: bool = True,
     linewidth: float = 2.0,
-) -> plt.Figure:
+) -> Figure:
     if protein is not None:
         pos = np.asarray(protein.atom_positions[:, rc.atom_order["CA"], :])
         if plddt is None:
             plddt = np.asarray(protein.b_factors[:, 1])
+    else:
+        assert pos is not None
 
     if best_view:
         pos = _protein_best_view(pos, plddt=plddt)
@@ -212,10 +218,12 @@ def plot_protein(
         fig.set_figheight(3)
     else:
         fig, ax1 = plt.subplots(1, 1)
+        ax2 = None
         fig.set_figwidth(3)
         fig.set_figheight(3)
 
     if ls is None:
+        assert protein is not None and protein.chain_index is not None
         cluster = find_cluster_boundaries(protein.chain_index.astype(int))
         ls = np.array([j - i + 1 for i, j, _ in cluster])
 
@@ -233,6 +241,7 @@ def plot_protein(
 
     if plddt is not None:
         # Color by pLDDT
+        assert ax2 is not None
         plot_protein_bb(pos, coloring="plddt", best_view=False, plddt=plddt, linewidth=linewidth, axes=ax2)
         _add_text("colored by pLDDT", ax2)
 
@@ -255,8 +264,8 @@ def _protein_best_view(
 
 def plot_protein_bb(
     pos: np.ndarray,  # [N_res, 3]
+    axes: Axes,
     plddt: np.ndarray | None = None,  # [N_res]
-    axes: plt.Axes | None = None,
     coloring: str = "plddt",
     ls: np.ndarray | None = None,
     best_view: bool = True,
@@ -276,15 +285,16 @@ def plot_protein_bb(
 
     if coloring == "NC":
         # Color from NTER to CTER
-        _plot_pseudo_3d(pos, linewidth=linewidth, ax=axes)
+        _plot_pseudo_3d(pos, linewidth=linewidth, axes=axes)
     elif coloring == "plddt":
         # Color by pLDDT
-        _plot_pseudo_3d(pos, c=plddt, cmap=plddt_cmap, cmin=50, cmax=90, linewidth=linewidth, ax=axes)
+        _plot_pseudo_3d(pos, c=plddt, cmap=plddt_cmap, cmin=50, cmax=90, linewidth=linewidth, axes=axes)
     elif coloring == "chain":
+        assert ls is not None
         # Color by chain
         c = np.concatenate([[n] * l for n, l in enumerate(ls)])
         num_res = len(ls)
         if num_res > 40:
-            _plot_pseudo_3d(pos, c=c, linewidth=linewidth, ax=axes)
+            _plot_pseudo_3d(pos, c=c, linewidth=linewidth, axes=axes)
         else:
-            _plot_pseudo_3d(pos, c=c, cmap=pymol_cmap, cmin=0, cmax=39, linewidth=linewidth, ax=axes)
+            _plot_pseudo_3d(pos, c=c, cmap=pymol_cmap, cmin=0, cmax=39, linewidth=linewidth, axes=axes)
