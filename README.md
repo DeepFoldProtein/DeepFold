@@ -1,9 +1,9 @@
-# DeepFold 2
+# DeepFold
 
 ## Features
 
 - Acceptable(?) replica of AlphaFold model.
-- Distributed inference (over multiple GPUS).
+- Distributed inference (over multiple GPUs).
 
 ## Setup
 
@@ -41,7 +41,7 @@ python3 \
 - You can fix feature processing random seed with `-data_random_seed` option.
 - You can determine how many GPUs to use with `-nt` flags and `NVIDIA_VISIBLE_DEVICES` environmental variable.
 
-### About NCCL
+### NCCL
 
 - Multi-GPU inference mode use NCCL (Nvidia Collective Communication Library).
 - If the framework stuck on communication, set `NCCL_P2P_DISABLE=1`.
@@ -52,10 +52,6 @@ python3 \
 ### Environmental variabes
 
 - Set `DEBUG=1` to show debug messages.
-
-### Override configurations
-
-You can override configurations with dot-list with `--options <DOT_LIST_1> <DOT_LIST_2> ...` argument.
 
 ## Training
 
