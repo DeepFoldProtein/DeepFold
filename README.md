@@ -5,36 +5,31 @@
 - Acceptable(?) replica of AlphaFold model.
 - Distributed inference (over multiple GPUs).
 
-## Setup
+## Installation
 
-```bash
+```sh
 git clone git@github.com:DeepFoldProtein/DeepFold.git   # Clone the repository
 cd DeepFold                                             # Change directory
-conda env create -f environment.yml                     # Construct Conda environment
-conda activate deepfold2-dev
-pip install .                                           # Build and install the package
+poetry install                                          # Build and install the package
 ```
 
 ## Inference
 
 AlphaFold parameter (JAX parameter) is needed to run AlphaFold model of DeepFold framework.
 
-```bash
-conda activate deepfold2-dev
-
+```sh
 # Example
-INPUT_FEATURES_PKL="_output/T1104/features.pkl"
-CONFIG="conf/model/alphafold/model_1.yaml"
-OUTPUT_BASE_DIR="_output"
-JAX_PARAMS_DIR="_data/params"
+INPUT_FEATURES_PKL="out/H1225/features.pkl"
+OUTPUT_BASE_DIR="out/H1225"
+JAX_PARAMS_DIR="resource/params"
 
-python3 \
-    "scripts/predict_from_pkl.py" \
-    -f "$(INPUT_FEATURES_PKL)" \    # Input features pickle file
-    -c "$(CONFIG_PATH)" \           # Configuration YAML
-    -o "$(OUTPUT_BASE_DIR)" \       # Output directory base path
-    -p "$(JAX_PARAMS_DIR)" \        # JAX parameter directory
-    -nt 2                           # Two GPUs
+python predict.py \
+    --params_dirpath "resources/params" \
+    --seed 1 \
+    --input_features_filepath out/H1225/features.pkz \
+    --output_dirpath out/H1225 \
+    --preset params_model_1_multimer_v3 \
+    --precision bf16
 ```
 
 - If you want to enable deterministic mode (for validation) add `--deterministic` flag.
@@ -59,4 +54,4 @@ TBA
 
 ## Copyright
 
-Copyright 2023 DeepFold Protein Research Team
+Copyright 2025 DeepFold Protein Research Team
