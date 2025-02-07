@@ -112,7 +112,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--max_recycling_iters",
-        default=0,
+        default=-1,  # Use the preset default value
         type=int,
         help="Maximum number of recycling iterations.",
     )
@@ -202,7 +202,7 @@ def get_preset_opts(preset: str) -> Tuple[str, Tuple[dict, dict, dict]]:
     if preset.startswith("deepfold"):
         feat_cfg_kwargs["max_recycling_iters"] = 10
 
-    model_name = {
+    presets = {
         "deepfold_model_1": "model_1",
         "deepfold_model_2": "model_2",
         "deepfold_model_3": "model_3",
@@ -233,7 +233,8 @@ def get_preset_opts(preset: str) -> Tuple[str, Tuple[dict, dict, dict]]:
         "params_model_3_multimer_v3": "model_3_v3",
         "params_model_4_multimer_v3": "model_4_v3",
         "params_model_5_multimer_v3": "model_5_v3",
-    }[preset]
+    }
+    model_name = presets.get(preset, preset)  # Return the original name for the unknown preset
 
     return model_name, (model_cfg_kwargs, feat_cfg_kwargs, import_kwargs)
 
@@ -263,7 +264,7 @@ def _recycle_hook(
 
     if save_recycle:
         batch_np = {
-            "residue_index": feats["residue_index"].cpu().squeeze(0).cpu().numpy(),
+            "residue_index": feats["residue_index"].cpu().squeeze(0).numpy(),
             "aatype": feats["aatype"].cpu().squeeze(0).numpy(),
         }
         if "asym_id" in feats:
@@ -478,11 +479,11 @@ def predict(args: argparse.Namespace) -> None:
         logger.info(f"Feature processing done in {pipeline_duration:0.2f} sec")
         if args.debug:
             dump_pickle(
-                {k: torch.as_tensor(v).cpu().numpy() for k, v in batch.items()},
+                {k: torch.as_tensor(v).numpy() for k, v in batch.items()},
                 args.output_dirpath / f"batch_{model_name}{suffix}.pkz",
             )
             logger.info("Dump input batch tensors")
-    batch_last = {k: np.array(v[..., -1].cpu()) for k, v in batch.items()}
+    batch_last = {k: np.array(v[..., -1].numpy()) for k, v in batch.items()}
 
     # Add batch dimension and copy processed features:
     batch = {k: torch.as_tensor(v[None, ...]).to(device=device) for k, v in batch.items()}
@@ -541,7 +542,7 @@ def predict(args: argparse.Namespace) -> None:
 
         # Remove batch dimension:
         out = tensor_tree_map(
-            fn=lambda x: np.array(x.squeeze(0).cpu()),
+            fn=lambda x: np.array(x.cpu().squeeze(0).numpy()),
             tree=out,
         )
         logger.info("Save predicted structure to PDB format...")
