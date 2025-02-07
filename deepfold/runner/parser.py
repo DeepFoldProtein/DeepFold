@@ -108,7 +108,7 @@ class Lexer:
         return t
 
     # Skips over '\s', '\t', and '\r' characters in the default state
-    t_ignore = "\x20\x09\x0D"
+    t_ignore = "\x20\x09\x0d"
 
     @lex.TOKEN(RE_ID)
     def t_ID(self, t):
@@ -189,8 +189,8 @@ class Lexer:
         r"\x2D"
         return t
 
-    t_graph_VALUE_SEPARATOR = "\x2C"  # ','
-    t_graph_ignore = "\x20\x09\x0D"
+    t_graph_VALUE_SEPARATOR = "\x2c"  # ','
+    t_graph_ignore = "\x20\x09\x0d"
 
     # Ignore \n
     def t_graph_NEWLINE(self, t):
@@ -305,7 +305,7 @@ class Lexer:
     def t_stoi_DIGITS(self, t):
         return t
 
-    t_stoi_ignore = "\x20\x09\x0D"
+    t_stoi_ignore = "\x20\x09\x0d"
 
     # Tokenizer
 
