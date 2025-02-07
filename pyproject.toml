@@ -1,22 +1,55 @@
-# [build-system]
-# requires = ["setuptools", "wheel"]
-# build-backend = "setuptools.build_meta"
+[project]
+name = "deepfold"
+version = "1.0.0"
+description = "DeepFold"
+authors = [{ name = "Minsoo Kim", email = "vv137.xyz@gmail.com" }]
+license = "LICENSE"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch (>=2.6.0,<3.0.0)",
+    "numpy (>=2.2.2,<3.0.0)",
+    "scipy (>=1.15.1,<2.0.0)",
+    "pandas (>=2.2.3,<3.0.0)",
+    "matplotlib (>=3.10.0,<4.0.0)",
+    "biopython (==1.81)",
+    "modelcif (>=1.3,<2.0)",
+    "omegaconf (>=2.3.0,<3.0.0)",
+    "networkx (>=3.4.2,<4.0.0)",
+    "dacite (>=1.9.2,<2.0.0)",
+    "tqdm (>=4.67.1,<5.0.0)",
+    "termcolor (>=2.5.0,<3.0.0)",
+    "openmm (>=8.2.0,<9.0.0)",
+]
+
+
+[project.urls]
+Homepage = "https://deepfold.org"
+Repository = "https://github.com/DeepFoldProtein/DeepFold"
+
+
+[project.scripts]
+
+
+[build-system]
+requires = ["setuptools >= 72.0"]
+build-backend = "setuptools.build_meta"
+
+
+[project.optional-dependencies]
+dev = ["pre-commit"]
+lint = ["black", "isort"]
+# test = ["pytest", "requests"]
+
 
 [tool.black]
 line-length = 150
-target-version = ['py310']
+target-version = ['py310', 'py311']
 include = '\.pyi?$'
 exclude = "csrc/*"
 
 [tool.isort]
 profile = "black"
 line_length = 150
-py_version = 39
+py_version = 310
 skip_glob = ["_runs/*", "csrc/*"]
-
-[tool.pyright]
-include = ["deepfold", "tests"]
-exclude = ["**/node_modules", "**/__pycache__"]
-
-pythonVersion = "3.10"
-pythonPlatform = "Linux"
