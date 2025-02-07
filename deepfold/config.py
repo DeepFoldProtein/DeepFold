@@ -191,21 +191,11 @@ class TMScoreHeadConfig:
 
 @dataclass
 class AuxiliaryHeadsConfig:
-    per_residue_lddt_ca_predictor_config: PerResidueLDDTCaPredictorConfig = field(
-        default=PerResidueLDDTCaPredictorConfig(),
-    )
-    distogram_head_config: DistogramHeadConfig = field(
-        default=DistogramHeadConfig(),
-    )
-    masked_msa_head_config: MaskedMSAHeadConfig = field(
-        default=MaskedMSAHeadConfig(),
-    )
-    experimentally_resolved_head_config: ExperimentallyResolvedHeadConfig = field(
-        default=ExperimentallyResolvedHeadConfig(),
-    )
-    tm_score_head_config: TMScoreHeadConfig = field(
-        default=TMScoreHeadConfig(),
-    )
+    per_residue_lddt_ca_predictor_config: PerResidueLDDTCaPredictorConfig = field(default_factory=PerResidueLDDTCaPredictorConfig)
+    distogram_head_config: DistogramHeadConfig = field(default_factory=DistogramHeadConfig)
+    masked_msa_head_config: MaskedMSAHeadConfig = field(default_factory=MaskedMSAHeadConfig)
+    experimentally_resolved_head_config: ExperimentallyResolvedHeadConfig = field(default_factory=ExperimentallyResolvedHeadConfig)
+    tm_score_head_config: TMScoreHeadConfig = field(default_factory=TMScoreHeadConfig)
     tm_score_head_enabled: bool = False
     ptm_weight: float = 0.2
     iptm_weight: float = 0.8
@@ -300,32 +290,16 @@ class CenterOfMassConfig:
 @dataclass
 class LossConfig:
     fape_loss_config: FAPELossConfig = field(
-        default=FAPELossConfig(),
+        default_factory=FAPELossConfig,
     )
-    supervised_chi_loss_config: SupervisedChiLossConfig = field(
-        default=SupervisedChiLossConfig(),
-    )
-    distogram_loss_config: DistogramLossConfig = field(
-        default=DistogramLossConfig(),
-    )
-    masked_msa_loss_config: MaskedMSALossConfig = field(
-        default=MaskedMSALossConfig(),
-    )
-    plddt_loss_config: PLDDTLossConfig = field(
-        default=PLDDTLossConfig(),
-    )
-    experimentally_resolved_loss_config: ExperimentallyResolvedLossConfig = field(
-        default=ExperimentallyResolvedLossConfig(),
-    )
-    violation_loss_config: ViolationLossConfig = field(
-        default=ViolationLossConfig(),
-    )
-    tm_loss_config: TMLossConfig = field(
-        default=TMLossConfig(),
-    )
-    chain_center_of_mass_config: CenterOfMassConfig = field(
-        default=CenterOfMassConfig(),
-    )
+    supervised_chi_loss_config: SupervisedChiLossConfig = field(default_factory=SupervisedChiLossConfig)
+    distogram_loss_config: DistogramLossConfig = field(default_factory=DistogramLossConfig)
+    masked_msa_loss_config: MaskedMSALossConfig = field(default_factory=MaskedMSALossConfig)
+    plddt_loss_config: PLDDTLossConfig = field(default_factory=PLDDTLossConfig)
+    experimentally_resolved_loss_config: ExperimentallyResolvedLossConfig = field(default_factory=ExperimentallyResolvedLossConfig)
+    violation_loss_config: ViolationLossConfig = field(default_factory=ViolationLossConfig)
+    tm_loss_config: TMLossConfig = field(default_factory=TMLossConfig)
+    chain_center_of_mass_config: CenterOfMassConfig = field(default_factory=CenterOfMassConfig)
 
 
 @dataclass
@@ -333,45 +307,21 @@ class AlphaFoldConfig:
     is_multimer: bool = False
 
     # AlphaFold modules configuration:
-    input_embedder_config: InputEmbedderConfig = field(
-        default=InputEmbedderConfig(),
-    )
-    recycling_embedder_config: RecyclingEmbedderConfig = field(
-        default=RecyclingEmbedderConfig(),
-    )
-    template_angle_embedder_config: TemplateAngleEmbedderConfig = field(
-        default=TemplateAngleEmbedderConfig(),
-    )
-    template_pair_embedder_config: TemplatePairEmbedderConfig = field(
-        default=TemplatePairEmbedderConfig(),
-    )
-    template_pair_stack_config: TemplatePairStackConfig = field(
-        default=TemplatePairStackConfig(),
-    )
-    template_pointwise_attention_config: TemplatePointwiseAttentionConfig = field(
-        default=TemplatePointwiseAttentionConfig(),
-    )
-    template_projection_config: TemplateProjectionConfig = field(
-        default=TemplateProjectionConfig(),
-    )
-    extra_msa_embedder_config: ExtraMSAEmbedderConfig = field(
-        default=ExtraMSAEmbedderConfig(),
-    )
-    extra_msa_stack_config: ExtraMSAStackConfig = field(
-        default=ExtraMSAStackConfig(),
-    )
-    evoformer_stack_config: EvoformerStackConfig = field(
-        default=EvoformerStackConfig(),
-    )
-    structure_module_config: StructureModuleConfig = field(
-        default=StructureModuleConfig(),
-    )
-    auxiliary_heads_config: AuxiliaryHeadsConfig = field(
-        default=AuxiliaryHeadsConfig(),
-    )
+    input_embedder_config: InputEmbedderConfig = field(default_factory=InputEmbedderConfig)
+    recycling_embedder_config: RecyclingEmbedderConfig = field(default_factory=RecyclingEmbedderConfig)
+    template_angle_embedder_config: TemplateAngleEmbedderConfig = field(default_factory=TemplateAngleEmbedderConfig)
+    template_pair_embedder_config: TemplatePairEmbedderConfig = field(default_factory=TemplatePairEmbedderConfig)
+    template_pair_stack_config: TemplatePairStackConfig = field(default_factory=TemplatePairStackConfig)
+    template_pointwise_attention_config: TemplatePointwiseAttentionConfig = field(default_factory=TemplatePointwiseAttentionConfig)
+    template_projection_config: TemplateProjectionConfig = field(default_factory=TemplateProjectionConfig)
+    extra_msa_embedder_config: ExtraMSAEmbedderConfig = field(default_factory=ExtraMSAEmbedderConfig)
+    extra_msa_stack_config: ExtraMSAStackConfig = field(default_factory=ExtraMSAStackConfig)
+    evoformer_stack_config: EvoformerStackConfig = field(default_factory=EvoformerStackConfig)
+    structure_module_config: StructureModuleConfig = field(default_factory=StructureModuleConfig)
+    auxiliary_heads_config: AuxiliaryHeadsConfig = field(default_factory=AuxiliaryHeadsConfig)
 
     # Training loss configuration:
-    loss_config: LossConfig = field(default=LossConfig())
+    loss_config: LossConfig = field(default_factory=LossConfig)
 
     # Recycling (last dimension in the batch dict):
     recycle_early_stop_enabled: bool = False
