@@ -41,7 +41,7 @@ class AmberRelaxation(object):
 
         Args:
           max_iterations: Maximum number of L-BFGS iterations. 0 means no max.
-          tolerance: kcal/mol, the energy tolerance of L-BFGS.
+          tolerance: kcal/mol/A, the force tolerance of L-BFGS.
           stiffness: kcal/mol A**2, spring constant of heavy atom restraining
             potential.
           exclude_residues: Residues to exclude from per-atom restraining.
