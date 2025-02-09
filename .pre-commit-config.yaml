@@ -23,3 +23,9 @@ repos:
       - id: poetry-check
       - id: poetry-lock
       - id: poetry-install
+  - repo: https://github.com/python-poetry/poetry-plugin-export
+    rev: 1.9.0
+    hooks:
+      - id: poetry-export
+        entry: poetry
+        args: ["export", "-f", "requirements.txt", "-o", "requirements.txt"]
