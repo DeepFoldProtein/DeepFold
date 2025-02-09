@@ -3,7 +3,6 @@ name = "deepfold"
 version = "1.0.0"
 description = "DeepFold"
 authors = [{ name = "Minsoo Kim", email = "vv137.xyz@gmail.com" }]
-license = "LICENSE"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -30,11 +29,8 @@ Homepage = "https://deepfold.org"
 Repository = "https://github.com/DeepFoldProtein/DeepFold"
 
 
-[project.scripts]
-
-
 [build-system]
-requires = ["setuptools >= 72.0"]
+requires = ["setuptools", "wheel", "build", "numpy", "torch"]
 build-backend = "setuptools.build_meta"
 
 
@@ -53,5 +49,9 @@ exclude = "csrc/*"
 [tool.isort]
 profile = "black"
 line_length = 150
-py_version = 310
+py_version = 311
 skip_glob = ["_runs/*", "csrc/*"]
+
+
+[tool.poetry.requires-plugins]
+poetry-plugin-export = ">=1.9"
