@@ -3,7 +3,7 @@ from typing import List
 import torch
 
 try:
-    from deepfold_kernels.evoformer_attn import DS4Sci_EvoformerAttention
+    from deepfold.ops.cc.evoformer_attn import DS4Sci_EvoformerAttention
 except ModuleNotFoundError:
     from deepfold.modules.tweaks import evo_attn
 

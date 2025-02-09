@@ -62,7 +62,7 @@ class SelfAttentionWithGate(nn.Module):
         self.linear_o = Linear(c_hidden * num_heads, c_qkv, bias=True, init="final")
 
         try:
-            from deepfold_kernels.evoformer_attn import DS4Sci_EvoformerAttention
+            from deepfold.ops.cc.evoformer_attn import DS4Sci_EvoformerAttention
         except ModuleNotFoundError:
             from deepfold.modules.tweaks import evo_attn
 
