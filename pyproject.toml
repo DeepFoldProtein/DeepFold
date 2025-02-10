@@ -1,6 +1,6 @@
 [project]
 name = "deepfold"
-version = "1.0.0"
+version = "1.0.1"
 description = "DeepFold"
 authors = [{ name = "Minsoo Kim", email = "vv137.xyz@gmail.com" }]
 readme = "README.md"
