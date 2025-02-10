@@ -67,7 +67,7 @@ python -m build
 Locate the generated `.whl` file in the `dist` directory. The filename will correspond to the version of DeepFold and your Python environment. Install the package using `pip`:
 
 ```sh
-python -m pip install dist/deepfold-<version>-py311-none-any.whl
+python -m pip install dist/deepfold-<version>-cp311-cp311-linux_x86_64.whl
 ```
 
 Replace `<version>` with the actual version number of the package.
