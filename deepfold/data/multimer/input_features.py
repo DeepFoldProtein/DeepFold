@@ -236,7 +236,7 @@ def process_multimer_features(
     pair_with_identifier: bool = False,
     a3m_strings_with_identifiers: Mapping[str, str] | None = None,
     paired_a3m_strings: Mapping[str, str] = dict(),
-    max_num_clusters: int = 508,
+    min_num_clusters: int = 508,
 ) -> dict:
     """Create a multimer input features."""
 
@@ -289,7 +289,7 @@ def process_multimer_features(
     # Pair and merge features:
     example = pair_and_merge(all_chain_features)
 
-    example = pad_msa(example, max_num_clusters)
+    example = pad_msa(example, min_num_clusters)
 
     return example
 
