@@ -37,9 +37,6 @@ def parse_stoi(stoi_str: str):
 
 
 def parse_args() -> argparse.Namespace:
-
-    pairing_preset = ["none", "uniprot", "colab", "taxid"]
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-i",
@@ -75,7 +72,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--pairing",
         default="uniprot",
-        choices=pairing_preset,
+        choices=["none", "uniprot", "colab", "taxid"],
     )
     parser.add_argument(
         "--colab_a3m",
