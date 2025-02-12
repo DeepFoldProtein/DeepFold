@@ -6,7 +6,7 @@ import re
 import string
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from matplotlib import pyplot as plt
 
