@@ -1,0 +1,34 @@
+{
+    "recipes": [
+        {
+            "name": "8EZL-1_7",
+            "units": [
+                {
+                    "path": "8ezl_1/uniref50.pkz",
+                    "num": 1
+                },
+                {
+                    "path": "8ezl_2/uniref50.pkz",
+                    "num": 1
+                }
+            ]
+        },
+        {
+            "name": "8EEE-1_7",
+            "units": [
+                {
+                    "path": "8eee_1/uniref50.pkz",
+                    "num": 2
+                },
+                {
+                    "path": "8eee_2/uniref50.pkz",
+                    "num": 2
+                },
+                {
+                    "path": "8eee_3/uniref50.pkz",
+                    "num": 2
+                }
+            ]
+        }
+    ]
+}
