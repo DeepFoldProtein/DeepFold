@@ -7,11 +7,7 @@
 
 ## Installation
 
-```sh
-git clone git@github.com:DeepFoldProtein/DeepFold.git   # Clone the repository
-cd DeepFold                                             # Change directory
-poetry install                                          # Build and install the package
-```
+See [build](https://github.com/DeepFoldProtein/DeepFold/blob/main/docs/build.md).
 
 ## Inference
 
