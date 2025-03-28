@@ -1,20 +1,15 @@
 import logging
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Tuple
 
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from deepfold.common import residue_constants as rc
 from deepfold.config import LossConfig
 from deepfold.losses.auxillary import experimentally_resolved_loss
 from deepfold.losses.confidence import plddt_loss, tm_loss
 from deepfold.losses.geometry import compute_renamed_ground_truth, distogram_loss, fape_loss, supervised_chi_loss
 from deepfold.losses.masked_msa import masked_msa_loss
 from deepfold.losses.violation import find_structural_violations, violation_loss
-from deepfold.utils.rigid_utils import Rigid, Rotation
-from deepfold.utils.tensor_utils import array_tree_map, tensor_tree_map
 
 logger = logging.getLogger(__name__)
 
