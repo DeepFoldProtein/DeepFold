@@ -20,7 +20,7 @@ import deepfold.distributed.model_parallel as mp
 import deepfold.modules.inductor as inductor
 from deepfold.common import protein
 from deepfold.common import residue_constants as rc
-from deepfold.config import MONOMER_OUTPUT_SHAPES, MULTIMER_OUTPUT_SHAPES, AlphaFoldConfig, FeaturePipelineConfig
+from deepfold.config import MONOMER_OUTPUT_SHAPES, MULTIMER_OUTPUT_SHAPES, AlphaFoldConfig, FeatureConfig
 from deepfold.data.process.pipeline import example_to_features
 from deepfold.modules.alphafold import AlphaFold
 from deepfold.modules.tweaks import evo_attn
@@ -425,7 +425,7 @@ def predict(args: argparse.Namespace) -> None:
         precision=args.precision,
         **model_cfg_kwargs,
     )
-    feat_config = FeaturePipelineConfig.from_preset(
+    feat_config = FeatureConfig.from_preset(
         preset="predict",
         subsample_templates=args.subsample_templates,
         seed=seed,

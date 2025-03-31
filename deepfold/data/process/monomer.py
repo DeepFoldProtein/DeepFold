@@ -13,14 +13,14 @@ from typing import Callable, Dict, List, Sequence
 import torch
 
 import deepfold.data.process.transforms as data_transforms
-from deepfold.config import FEATURE_SHAPES, FeaturePipelineConfig
+from deepfold.config import FEATURE_SHAPES, FeatureConfig
 
 TensorDict = Dict[str, torch.Tensor]
 
 
 def process_raw_feature_tensors(
     tensors: TensorDict,
-    cfg: FeaturePipelineConfig,
+    cfg: FeatureConfig,
 ) -> TensorDict:
     """Based on the config, apply filters and transformations to the data."""
 
@@ -41,7 +41,7 @@ def process_raw_feature_tensors(
     return tensors
 
 
-def nonensembled_transform_fns(cfg: FeaturePipelineConfig) -> List[Callable]:
+def nonensembled_transform_fns(cfg: FeatureConfig) -> List[Callable]:
     """Input pipeline data transformers that are not ensembled."""
 
     # Non-ensembled features:
@@ -94,7 +94,7 @@ def nonensembled_transform_fns(cfg: FeaturePipelineConfig) -> List[Callable]:
 
 
 def ensembled_transform_fns(
-    cfg: FeaturePipelineConfig,
+    cfg: FeatureConfig,
     ensemble_iter: int,
 ) -> List[Callable]:
     """Input pipeline data transformers that can be ensembled and averaged."""

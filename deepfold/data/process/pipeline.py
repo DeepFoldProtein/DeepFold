@@ -4,7 +4,7 @@ from typing import Dict, Mapping, Sequence
 import numpy as np
 import torch
 
-from deepfold.config import FeaturePipelineConfig
+from deepfold.config import FeatureConfig
 from deepfold.data.process import monomer, multimer
 
 TensorDict = Dict[str, torch.Tensor]
@@ -33,7 +33,7 @@ def example_to_tensor_dict(
 
 def example_to_features(
     example: dict,
-    cfg: FeaturePipelineConfig,
+    cfg: FeatureConfig,
 ) -> TensorDict:
     cfg = copy.deepcopy(cfg)
 
