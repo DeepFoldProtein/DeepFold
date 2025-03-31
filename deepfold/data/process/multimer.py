@@ -10,7 +10,7 @@ from typing import Callable, Dict, List
 
 import torch
 
-from deepfold.config import MULTIMER_FEATURE_SHAPES, FeaturePipelineConfig
+from deepfold.config import MULTIMER_FEATURE_SHAPES, FeatureConfig
 from deepfold.data.process import transforms as data_transforms
 from deepfold.data.process import transforms_multimer as data_transforms_multimer
 from deepfold.data.process.monomer import compose
@@ -20,7 +20,7 @@ TensorDict = Dict[str, torch.Tensor]
 
 def process_raw_feature_tensors(
     tensors: TensorDict,
-    cfg: FeaturePipelineConfig,
+    cfg: FeatureConfig,
 ) -> TensorDict:
     """Based on the config, apply filters and transformations to the data."""
 
@@ -42,7 +42,7 @@ def process_raw_feature_tensors(
     return tensors
 
 
-def nonensembled_transform_fns(cfg: FeaturePipelineConfig) -> List[Callable]:
+def nonensembled_transform_fns(cfg: FeatureConfig) -> List[Callable]:
     """Input pipeline data transfroms that are not ensembled."""
 
     # Non-ensembled fetaures:
@@ -83,7 +83,7 @@ def nonensembled_transform_fns(cfg: FeaturePipelineConfig) -> List[Callable]:
 
 
 def ensembled_transform_fns(
-    cfg: FeaturePipelineConfig,
+    cfg: FeatureConfig,
     ensemble_iter: int,
 ) -> List[Callable]:
     """Input pipeline data transformers that can be ensembled and averaged."""

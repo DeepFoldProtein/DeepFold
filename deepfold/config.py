@@ -476,7 +476,7 @@ def _half_precision_settings() -> dict:
 
 
 @dataclass
-class FeaturePipelineConfig:
+class FeatureConfig:
     preset: str = ""
     is_multimer: bool = False
     seed: int = 0
@@ -606,7 +606,7 @@ class FeaturePipelineConfig:
         seed: int,
         is_multimer: bool = False,
         **additional_options,
-    ) -> FeaturePipelineConfig:
+    ) -> FeatureConfig:
         cfg = {
             "seed": seed,
         }
@@ -636,7 +636,7 @@ class FeaturePipelineConfig:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, cfg: dict) -> FeaturePipelineConfig:
+    def from_dict(cls, cfg: dict) -> FeatureConfig:
         return dacite.from_dict(cls, cfg, dacite.Config(strict=True, check_types=True))
 
 
