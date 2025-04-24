@@ -32,6 +32,7 @@ class MSARowAttentionWithPairBias(nn.Module):
         num_heads: int,
         inf: float,
         chunk_size: Optional[int],
+        impl: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.layer_norm_m = LayerNorm(c_m)
@@ -43,6 +44,7 @@ class MSARowAttentionWithPairBias(nn.Module):
             num_heads=num_heads,
             inf=inf,
             chunk_size=chunk_size,
+            impl=impl,
         )
 
     def forward(
