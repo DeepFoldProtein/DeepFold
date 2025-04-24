@@ -23,7 +23,6 @@ from deepfold.common import residue_constants as rc
 from deepfold.config import MONOMER_OUTPUT_SHAPES, MULTIMER_OUTPUT_SHAPES, AlphaFoldConfig, FeatureConfig
 from deepfold.data.process.pipeline import example_to_features
 from deepfold.modules.alphafold import AlphaFold
-from deepfold.modules.tweaks import evo_attn
 from deepfold.utils.crop_utils import unpad_to_schema_shape_
 from deepfold.utils.file_utils import dump_pickle, load_pickle
 from deepfold.utils.import_utils import import_jax_weights_
@@ -35,7 +34,6 @@ from deepfold.utils.tensor_utils import tensor_tree_map
 torch.set_float32_matmul_precision("high")
 torch.set_grad_enabled(False)
 
-evo_attn.disable()
 
 logger = logging.getLogger(__name__)
 
@@ -148,8 +146,6 @@ def parse_args() -> argparse.Namespace:
     #
     if args.tweaks:
         tws = args.tweaks.strip().split(",")
-        if "evo_attn" in tws:
-            evo_attn.enable()
     #
     return args
 
@@ -246,6 +242,7 @@ def _recycle_hook(
     *,
     output_dirpath: Path | None = None,
     save_recycle: bool = False,
+    gc_collect: bool = False,
 ) -> None:
     # Calculate mean plDDT
     outputs["mean_plddt"] = torch.sum(outputs["plddt"] * feats["seq_mask"]) / torch.sum(feats["seq_mask"])
@@ -285,6 +282,9 @@ def _recycle_hook(
         )
         with open(pdb_filepath, "w") as fp:
             fp.write(protein.to_pdb(prot))
+
+    if gc_collect:
+        gc.collect()
 
 
 def _save_summary(
@@ -411,10 +411,7 @@ def predict(args: argparse.Namespace) -> None:
     # Distributed warm-up:
     if args.mp_size > 0:
         if mp.is_initialized():
-            torch.distributed.barrier(
-                group=mp.group(),
-                device_ids=[dist.local_rank()],
-            )
+            torch.distributed.barrier(group=mp.group(), device_ids=[dist.local_rank()])
 
     # Maximum recycling iterations:
     if args.max_recycling_iters >= 0:
@@ -518,6 +515,7 @@ def predict(args: argparse.Namespace) -> None:
             _recycle_hook,
             output_dirpath=recycle_outpath,
             save_recycle=args.save_recycle,
+            gc_collect=True,
         )
     else:
         recycle_hook = None
@@ -533,7 +531,7 @@ def predict(args: argparse.Namespace) -> None:
     if args.mp_size > 0:
         gc.collect()
         torch.cuda.empty_cache()
-        torch.distributed.barrier()
+        torch.distributed.barrier(group=mp.group(), device_ids=[dist.local_rank()])
 
     time_elapsed = time.perf_counter() - tiem_begin
     if dist.is_master_process():
@@ -579,10 +577,11 @@ def predict(args: argparse.Namespace) -> None:
     # Exit:
     del model
     if args.mp_size > 0:
-        torch.distributed.barrier()
+        torch.distributed.barrier(group=mp.group(), device_ids=[dist.local_rank()])
         exit(0)
         if mp.size() >= 2:
             os.killpg(os.getpgid(os.getpid()), signal.SIGKILL)
+        dist.destroy()
 
 
 if __name__ == "__main__":
