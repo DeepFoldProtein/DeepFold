@@ -73,6 +73,11 @@ def initialize() -> None:
     _DIST_INITIALIZED = True
 
 
+def destroy() -> None:
+    assert _DIST_INITIALIZED
+    torch.distributed.destroy_process_group()
+
+
 def is_initialized() -> bool:
     return _DIST_INITIALIZED
 
