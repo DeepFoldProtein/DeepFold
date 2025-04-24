@@ -3,6 +3,7 @@ import dataclasses
 import json
 import logging
 import string
+import sys
 from pathlib import Path
 from typing import Dict, List
 
@@ -29,18 +30,20 @@ class Tee:
             fp.flush()
 
 
-def parse_args() -> argparse.Namespace:
+def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--show-example",
+        action="store_true",
+    )
     parser.add_argument(
         "-i",
         "--input_filepath",
-        required=True,
         type=Path,
     )
     parser.add_argument(
         "-d",
         "--target_dirpath",
-        default=Path.cwd(),
         type=Path,
     )
     parser.add_argument(
@@ -60,56 +63,55 @@ def parse_args() -> argparse.Namespace:
         default="none",
         choices=["none"],
     )
-    setup_logging("multimer.log")
-    return parser.parse_args()
+    return parser
 
 
 @dataclasses.dataclass(frozen=True)
-class Unit:
+class Entity:
     feature_filepath: Path
     num_sym: int = 1
 
 
 @dataclasses.dataclass(frozen=True)
-class Recipe:
+class Structures:
     name: str
-    units: List[Unit] = dataclasses.field(default_factory=Unit)
+    entities: List[Entity] = dataclasses.field(default_factory=Entity)
     version: int = 2
 
 
-def parse_input_json(input_json: str) -> List[Recipe]:
+def parse_input_json(input_json: str) -> List[Structures]:
     o = json.loads(input_json)
     records = []
-    for r in o["recipes"]:
+    for r in o["structures"]:
         units = []
-        for u in r["units"]:
+        for u in r["entities"]:
             units.append(
-                Unit(
+                Entity(
                     feature_filepath=u["path"],
-                    num_sym=int(u["num"]),
+                    num_sym=int(u["num_sym"]),
                 )
             )
-        rec = Recipe(
+        rec = Structures(
             name=r["name"],
-            units=units,
+            entities=units,
         )
         records.append(rec)
     return records
 
 
 def cook_recipe_v2(
-    recipe: Recipe,
+    structures: Structures,
     output_dirpath: Path,
     target_dirpath: Path = Path.cwd(),
     force: bool = True,
 ) -> Dict[str, str]:
-    assert recipe.version == 2
+    assert structures.version == 2
 
-    name = recipe.name
+    name = structures.name
     output_dirpath = output_dirpath / name
     output_dirpath.mkdir(parents=True, exist_ok=force)
 
-    units = recipe.units
+    units = structures.entities
     stoich = ""
 
     descriptions = []
@@ -142,20 +144,54 @@ def cook_recipe_v2(
 
 
 def main(args: argparse.Namespace):
+    if args.show_example:
+        example = {
+            "structures": [
+                {
+                    "name": "multimer",
+                    "entities": [
+                        {
+                            "path": "features/chainA.pkz",
+                            "num_sym": 2,
+                        },
+                        {
+                            "path": "features/chainB.pkz",
+                            "num_sym": 3,
+                        },
+                    ],
+                }
+            ]
+        }
+        print(json.dumps(example, indent=4))
+        return
+
     input_filepath: Path = args.input_filepath
     recipes = parse_input_json(input_filepath.read_text())
 
     for k, v in vars(args).items():
         logger.info(f"{k}={v}")
 
+    if args.target_dirpath is None:
+        target_dirpath = input_filepath.parent
+    else:
+        target_dirpath = args.target_dirpath
+
     for recipe in recipes:
         dic = cook_recipe_v2(
-            recipe=recipe,
+            structures=recipe,
             output_dirpath=args.output_dirpath,
-            target_dirpath=args.target_dirpath,
+            target_dirpath=target_dirpath,
         )
         logger.info(dic)
 
 
 if __name__ == "__main__":
-    main(parse_args())
+    parser = get_parser()
+    setup_logging("multimer.log")
+    args = parser.parse_args()
+
+    if not args.show_example and args.input_filepath is None:
+        parser.error("--input_filepath is required unless --show_example is specified.")
+        sys.exit(2)
+
+    main(args)
