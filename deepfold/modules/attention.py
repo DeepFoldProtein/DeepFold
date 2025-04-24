@@ -6,8 +6,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import deepfold.modules.inductor as inductor
+import deepfold.ops.triton_mha as triton_mha
 from deepfold.modules.linear import Linear
-from deepfold.modules.tweaks import evo_attn
 from deepfold.utils.iter_utils import slice_generator
 
 
@@ -44,7 +44,7 @@ class SelfAttentionWithGate(nn.Module):
         num_heads: int,
         inf: float,
         chunk_size: Optional[int],
-        impl: Optional[str] = None,
+        impl: str | None = None,
     ) -> None:
         super().__init__()
         self.c_qkv = c_qkv
@@ -52,7 +52,7 @@ class SelfAttentionWithGate(nn.Module):
         self.num_heads = num_heads
         self.inf = inf
         self.chunk_size = chunk_size
-        self.impl = impl
+        self.impl = "triton" if impl is None else impl
 
         total_dim = c_hidden * num_heads
         self.linear_q = Linear(c_qkv, total_dim, bias=False, init="glorot")
@@ -60,14 +60,6 @@ class SelfAttentionWithGate(nn.Module):
         self.linear_v = Linear(c_qkv, total_dim, bias=False, init="glorot")
         self.linear_g = Linear(c_qkv, total_dim, init="gating")
         self.linear_o = Linear(c_hidden * num_heads, c_qkv, bias=True, init="final")
-
-        try:
-            from deepfold.ops.cc.evoformer_attn import DS4Sci_EvoformerAttention
-        except ModuleNotFoundError:
-            from deepfold.modules.tweaks import evo_attn
-
-            # Disable evoformer attention
-            evo_attn.disable()
 
     def forward(
         self,
@@ -90,35 +82,33 @@ class SelfAttentionWithGate(nn.Module):
 
         """
         query, key, value, gate = self._prep_qkvg(input_qkv)
-        # query: [*, num_heads, Q, c_hidden]
-        # key:   [*, num_heads, K, c_hidden]
-        # value: [*, num_heads, V, c_hidden]
-        # gate:  [*, Q, num_heads * c_hidden]
+        # query: [*, seq_len_q, num_heads, c_hidden]
+        # key:   [*, seq_len_k, num_heads, c_hidden]
+        # value: [*, seq_len_k, num_heads, c_hidden]
+        # gate:  [*, seq_len_q, num_heads * c_hidden]
 
-        if evo_attn.is_enabled():
-            impl = "evo"
-        else:
-            impl = "torch"
-
-        if self.impl is not None:
-            impl = self.impl
-
-        if impl == "torch":
+        if self.impl == "torch":
+            query = query.transpose(-2, -3)
+            key = key.transpose(-2, -3)
+            value = value.transpose(-2, -3)
             output = self._attention_forward(query, key, value, mask, bias)
             # output: [*, num_heads, Q, c_hidden] for torch implementation.
             output = output.transpose(-2, -3)
             # output: [*, Q, num_heads, c_hidden]
-        elif impl == "evo":
-            from deepfold.ops.evoformer_attention import deepspeed_evo_attn
-
-            mask_bias = (mask - 1.0) * self.inf
-            biases = [mask_bias]
-            if bias is not None:
-                biases.append(bias)
-            # output = deepspeed_evo_attn(query / math.sqrt(self.c_hidden), key, value, biases)
-            output = deepspeed_evo_attn(query, key, value, biases)
+        elif self.impl == "sdpa":
+            scale = 1.0 / math.sqrt(query.size(-1))
+            query = query.transpose(-2, -3)
+            key = key.transpose(-2, -3)
+            value = value.transpose(-2, -3)
+            attn_mask = self.inf * (mask - 1) + bias
+            output = F.scaled_dot_product_attention(query, key, value, attn_mask=attn_mask, scale=scale)
+            # output: [*, num_heads, Q, c_hidden] for torch implementation.
+            output = output.transpose(-2, -3)
+        elif self.impl == "triton":
+            scaling = 1.0 / math.sqrt(query.size(-1))
+            output = triton_mha.mha(query, key, value, mask.bool(), bias, scaling, self.inf)
         else:
-            raise ValueError(f"Unsupported implementation '{impl}'")
+            raise ValueError(f"Unsupported implementation '{self.impl}'")
 
         del query, key, value
 
@@ -167,13 +157,6 @@ class SelfAttentionWithGate(nn.Module):
         # k: [*, K, num_heads, c_hidden]
         # v: [*, V, num_heads, c_hidden]
 
-        q = q.transpose(-2, -3)
-        k = k.transpose(-2, -3)
-        v = v.transpose(-2, -3)
-        # q: [*, num_heads, Q, c_hidden]
-        # k: [*, num_heads, K, c_hidden]
-        # v: [*, num_heads, V, c_hidden]
-
         # q = q / math.sqrt(self.c_hidden) scaling moved to _attention function
 
         return q, k, v, g
@@ -217,7 +200,7 @@ class CrossAttentionNoGate(nn.Module):
         num_heads: int,
         inf: float,
         chunk_size: Optional[int],
-        impl: Optional[str] = None,
+        impl: str,
     ) -> None:
         super().__init__()
         self.c_q = c_q
@@ -226,7 +209,7 @@ class CrossAttentionNoGate(nn.Module):
         self.num_heads = num_heads
         self.inf = inf
         self.chunk_size = chunk_size
-        self.impl = impl
+        self.impl = "triton" if impl is None else impl
 
         self.linear_q = Linear(c_q, c_hidden * num_heads, bias=False, init="glorot")
         self.linear_k = Linear(c_kv, c_hidden * num_heads, bias=False, init="glorot")
@@ -253,33 +236,33 @@ class CrossAttentionNoGate(nn.Module):
 
         """
         query, key, value = self._prep_qkv(input_q, input_kv)
-        # query: [*, num_heads, Q, c_hidden]
-        # key:   [*, num_heads, K, c_hidden]
-        # value: [*, num_heads, V, c_hidden]
-        if evo_attn.is_enabled():
-            impl = "evo"
-        else:
-            impl = "torch"
 
-        if self.impl is not None:
-            impl = self.impl
+        # query: [*, seq_len_q, num_heads, c_hidden]
+        # key:   [*, seq_len_k, num_heads, c_hidden]
+        # value: [*, seq_len_k, num_heads, c_hidden]
 
-        if impl == "torch":
+        if self.impl == "torch":
+            query = query.transpose(-2, -3)
+            key = key.transpose(-2, -3)
+            value = value.transpose(-2, -3)
             output = self._attention_forward(query, key, value, mask, bias)
             # output: [*, num_heads, Q, c_hidden] for torch implementation.
             output = output.transpose(-2, -3)
             # output: [*, Q, num_heads, c_hidden]
-        elif impl == "evo":
-            from deepfold.ops.evoformer_attention import deepspeed_evo_attn
-
-            mask_bias = (mask - 1.0) * self.inf
-            biases = [mask_bias]
-            if bias is not None:
-                biases.append(bias)
-            # output = deepspeed_evo_attn(query / math.sqrt(self.c_hidden), key, value, biases)
-            output = deepspeed_evo_attn(query, key, value, biases)
+        elif self.impl == "sdpa":
+            scale = 1.0 / math.sqrt(query.size(-1))
+            query = query.transpose(-2, -3)
+            key = key.transpose(-2, -3)
+            value = value.transpose(-2, -3)
+            attn_mask = self.inf * (mask - 1) + bias
+            output = F.scaled_dot_product_attention(query, key, value, attn_mask=attn_mask, scale=scale)
+            # output: [*, num_heads, Q, c_hidden] for torch implementation.
+            output = output.transpose(-2, -3)
+        elif self.impl == "triton":
+            scaling = 1.0 / math.sqrt(query.size(-1))
+            output = triton_mha.mha(query, key, value, mask.bool(), bias, scaling, self.inf)
         else:
-            raise ValueError(f"Unsupported implementation '{impl}'")
+            raise ValueError(f"Unsupported implementation '{self.impl}'")
 
         del query, key, value
 
@@ -312,13 +295,6 @@ class CrossAttentionNoGate(nn.Module):
         # q: [*, Q, num_heads, c_hidden]
         # k: [*, K, num_heads, c_hidden]
         # v: [*, V, num_heads, c_hidden]
-
-        q = q.transpose(-2, -3)
-        k = k.transpose(-2, -3)
-        v = v.transpose(-2, -3)
-        # q: [*, num_heads, Q, c_hidden]
-        # k: [*, num_heads, K, c_hidden]
-        # v: [*, num_heads, V, c_hidden]
 
         # q = q / math.sqrt(self.c_hidden) scaling moved to _attention function
 

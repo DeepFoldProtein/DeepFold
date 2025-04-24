@@ -161,9 +161,9 @@ class AlphaFold(nn.Module):
     ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         outputs = {}
 
-        batch_dims = feats["target_feat"].shape[:-2]
-        num_batch_dims = len(batch_dims)
-        num_res = feats["target_feat"].shape[-2]
+        # batch_dims = feats["target_feat"].shape[:-2]
+        # num_batch_dims = len(batch_dims)
+        # num_res = feats["target_feat"].shape[-2]
         num_clust = feats["msa_feat"].shape[-3]  # 1
 
         # Whehter the model uses in-place operations:

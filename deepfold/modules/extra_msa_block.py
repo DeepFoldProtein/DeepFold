@@ -70,6 +70,7 @@ class ExtraMSABlock(nn.Module):
             num_heads=num_heads_msa,
             inf=inf,
             chunk_size=chunk_size_msa_att,
+            impl="torch",
         )
         self.msa_att_col = MSAColumnGlobalAttention(
             c_e=c_e,
