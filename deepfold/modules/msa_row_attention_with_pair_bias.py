@@ -32,7 +32,7 @@ class MSARowAttentionWithPairBias(nn.Module):
         num_heads: int,
         inf: float,
         chunk_size: Optional[int],
-        impl: Optional[str] = None,
+        impl: str = "triton",
     ) -> None:
         super().__init__()
         self.layer_norm_m = LayerNorm(c_m)
@@ -46,6 +46,7 @@ class MSARowAttentionWithPairBias(nn.Module):
             chunk_size=chunk_size,
             impl=impl,
         )
+        self.impl = impl
 
     def forward(
         self,
@@ -65,8 +66,10 @@ class MSARowAttentionWithPairBias(nn.Module):
                 MSA (or Extra MSA) representation update
 
         """
-        mask = mask.unsqueeze(-2).unsqueeze(-3)
-        # mask: [batch, N_seq, 1, 1, N_res]
+        if self.impl != "triton":
+            mask = mask.unsqueeze(-2).unsqueeze(-3)
+            # mask: [batch, N_seq, 1, 1, N_res]
+        # mask: [batch, N_seq, N_res]
 
         z = self.layer_norm_z(z)
         z = self.linear_z(z)
@@ -74,8 +77,11 @@ class MSARowAttentionWithPairBias(nn.Module):
             z = mp.gather(z, dim=-3, bwd="all_reduce_sum_split")
         # z: [batch, N_res, N_res, num_heads]
 
-        z = z.movedim(-1, -3).unsqueeze(-4)
-        # z: [batch, 1, num_heads, N_res, N_res]
+        z = z.movedim(-1, -3)
+        if self.impl != "triton":
+            z = z.unsqueeze(-4)
+            # z: [batch, 1, num_heads, N_res, N_res]
+        # z: [batch, num_heads, N_res, N_res]
 
         m = self.layer_norm_m(m)
         m = self.mha(

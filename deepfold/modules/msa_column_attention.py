@@ -28,6 +28,7 @@ class MSAColumnAttention(nn.Module):
         num_heads: int,
         inf: float,
         chunk_size: Optional[int],
+        impl: str = "triton",
     ) -> None:
         super().__init__()
         self.layer_norm_m = LayerNorm(c_m)
@@ -37,7 +38,9 @@ class MSAColumnAttention(nn.Module):
             num_heads=num_heads,
             inf=inf,
             chunk_size=chunk_size,
+            impl=impl,
         )
+        self.impl = impl
 
     def forward(
         self,
@@ -60,8 +63,10 @@ class MSAColumnAttention(nn.Module):
         mask = mask.transpose(-1, -2)
         # mask: [batch, N_res, N_seq]
 
-        mask = mask.unsqueeze(-2).unsqueeze(-3)
-        # mask: [batch, N_res, 1, 1, N_seq]
+        if self.impl != "triton":
+            mask = mask.unsqueeze(-2).unsqueeze(-3)
+            # mask: [batch, N_res, 1, 1, N_seq]
+        # mask: [batch, N_res, N_seq]
 
         m_transposed_normalized = self.layer_norm_m(m_transposed)
         m = self.mha(

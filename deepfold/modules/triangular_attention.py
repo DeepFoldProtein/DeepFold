@@ -20,7 +20,7 @@ class TriangleAttention(nn.Module):
         num_heads: Number of attention heads.
         ta_type: "starting" or "ending"
         inf: Safe infinity value.
-        chunk_size: Optional chunk size for a batch-like dimension.
+            chunk_size: Optional chunk size for a batch-like dimension.
 
     """
 
@@ -32,6 +32,7 @@ class TriangleAttention(nn.Module):
         ta_type: str,
         inf: float,
         chunk_size: Optional[int],
+        impl: str = "triton",
     ) -> None:
         super().__init__()
         self._is_starting = {"starting": True, "ending": False}[ta_type]
@@ -43,7 +44,9 @@ class TriangleAttention(nn.Module):
             num_heads=num_heads,
             inf=inf,
             chunk_size=chunk_size,
+            impl=impl,
         )
+        self.impl = impl
 
     def forward(
         self,
@@ -69,8 +72,10 @@ class TriangleAttention(nn.Module):
         z = self.layer_norm(z)
         # z: [batch, N_res, N_res, c_z]
 
-        mask = mask.unsqueeze(-2).unsqueeze(-3)
-        # mask: [batch, N_res, 1, 1, N_res]
+        if self.impl != "triton":
+            mask = mask.unsqueeze(-2).unsqueeze(-3)
+            # mask: [batch, N_res, 1, 1, N_res]
+        # mask: [batch, N_res, N_res]
 
         triangle_bias = self.linear(z)
         # triangle_bias: [batch, N_res, N_res, num_heads]
@@ -78,8 +83,12 @@ class TriangleAttention(nn.Module):
         if mp.is_enabled():
             triangle_bias = mp.gather(triangle_bias, dim=-3, bwd="all_reduce_sum_split")
 
-        triangle_bias = triangle_bias.movedim(-1, -3).unsqueeze(-4).contiguous()
-        # triangle_bias: [batch, 1, num_heads, N_res, N_res]
+        triangle_bias = triangle_bias.movedim(-1, -3)
+        if self.impl != "triton":
+            triangle_bias = triangle_bias.unsqueeze(-4)
+            # triangle_bias: [batch, 1, num_heads, N_res, N_res]
+        # tritnale_bias: [batch, num_heads, N_res, N_res]
+        # triangle_bias = triangle_bias.contiguous()
 
         z = self.mha(
             input_qkv=z,
