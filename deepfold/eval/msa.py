@@ -1,6 +1,10 @@
+import string
+
 import numpy as np
 from matplotlib.axes import Axes
 from scipy.spatial.distance import pdist, squareform
+
+from deepfold.eval.utils import read_iter
 
 RESTYPES = ["A", "R", "N", "D", "C", "Q", "E", "G", "H", "I", "L", "K", "M", "F", "P", "S", "T", "W", "Y", "V", "X", "-"]
 
