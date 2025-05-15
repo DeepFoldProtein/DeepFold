@@ -1,5 +1,6 @@
 import string
 
+import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from scipy.spatial.distance import pdist, squareform
