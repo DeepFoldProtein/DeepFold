@@ -13,25 +13,6 @@ from deepfold.eval.distogram import compute_distogram, compute_predicted_distogr
 from deepfold.eval.msa import compute_neff_v2 as compute_neff
 
 
-def _set_size(
-    w: float,
-    h: float,
-    ax: Axes | None = None,
-):
-    """w, h: width, height in inches"""
-    if not ax:
-        ax = plt.gca()
-    fig = ax.get_figure()
-    assert fig is not None
-    l = fig.subplotpars.left
-    r = fig.subplotpars.right
-    t = fig.subplotpars.top
-    b = fig.subplotpars.bottom
-    figw = float(w) / (r - l)
-    figh = float(h) / (t - b)
-    fig.set_size_inches(figw, figh)
-
-
 def find_cluster_boundaries(a: np.ndarray) -> List[Tuple[int, int, int]]:
     a = np.asarray(a)
     assert a.ndim == 1
