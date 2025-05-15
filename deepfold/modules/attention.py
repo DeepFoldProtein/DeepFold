@@ -105,8 +105,18 @@ class SelfAttentionWithGate(nn.Module):
             # output: [*, num_heads, Q, c_hidden] for torch implementation.
             output = output.transpose(-2, -3)
         elif self.impl == "triton":
-            scaling = 1.0 / math.sqrt(query.size(-1))
-            output = triton_mha.mha(query, key, value, mask.bool(), bias, scaling, self.inf)
+            query = query.movedim(-2, -4)
+            key = key.movedim(-2, -4)
+            value = value.movedim(-2, -4)
+            if bias is None:
+                bias = torch.tensor(0, device=query.device, dtype=query.dtype)
+                batch_size = query.shape[-5]
+                head_dim = query.shape[-4]
+                query_length = query.shape[-2]
+                value_length = value.shape[-2]
+                bias = bias.broadcast_to((batch_size, head_dim, query_length, value_length))
+            output = triton_mha.triangle_attention(query, key, value, bias, ~mask.bool())
+            output = output.movedim(-4, -2)
         else:
             raise ValueError(f"Unsupported implementation '{self.impl}'")
 
@@ -259,8 +269,17 @@ class CrossAttentionNoGate(nn.Module):
             # output: [*, num_heads, Q, c_hidden] for torch implementation.
             output = output.transpose(-2, -3)
         elif self.impl == "triton":
-            scaling = 1.0 / math.sqrt(query.size(-1))
-            output = triton_mha.mha(query, key, value, mask.bool(), bias, scaling, self.inf)
+            query = query.movedim(-2, -4)
+            key = key.movedim(-2, -4)
+            value = value.movedim(-2, -4)
+            if bias is None:
+                bias = torch.tensor(0, device=query.device, dtype=query.dtype)
+                batch_size = query.shape[-5]
+                head_dim = query.shape[-4]
+                query_length = query.shape[-2]
+                value_length = value.shape[-2]
+                bias = bias.broadcast_to((batch_size, head_dim, query_length, value_length))
+            output = triton_mha.triangle_attention(query, key, value, bias, ~mask.bool())
         else:
             raise ValueError(f"Unsupported implementation '{self.impl}'")
 
@@ -323,6 +342,7 @@ def _attention_eager(
     value: torch.Tensor,
     mask: torch.Tensor,
     bias: Optional[torch.Tensor],
+    scaling: Optional[float],
     inf: float,
 ) -> torch.Tensor:
     # query:  [*, num_heads, Q, c_hidden]
@@ -336,7 +356,8 @@ def _attention_eager(
     key = torch.swapdims(key, -2, -1)
     # key: [*, num_heads, c_hidden, K]
 
-    scaling = 1.0 / math.sqrt(query.size(-1))
+    if scaling is None:
+        scaling = 1.0 / math.sqrt(query.size(-1))
     a = torch.matmul(query * scaling, key)
     # a: [*, num_heads, Q, K]
 
@@ -386,6 +407,7 @@ def _attention_chunked(
             value=value_chunk,
             mask=mask_chunk,
             bias=bias_chunk,
+            scaling=None,
             inf=inf,
         )
         output_chunks.append(output_chunk)
