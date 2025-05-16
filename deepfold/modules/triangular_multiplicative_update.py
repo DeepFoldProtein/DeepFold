@@ -89,7 +89,7 @@ class TriangleMultiplicativeUpdate(nn.Module):
                 a = mp.gather(a, dim=-2, bwd="all_reduce_sum_split")
 
         if is_fp16_enabled():
-            with torch.cuda.amp.autocast(enabled=False):
+            with torch.amp.autocast(enabled=False):
                 x = self._combine_projections(a.float(), b.float())
         else:
             x = self._combine_projections(a, b)

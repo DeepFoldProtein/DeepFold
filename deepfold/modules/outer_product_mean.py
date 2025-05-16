@@ -65,7 +65,7 @@ class OuterProductMean(nn.Module):
 
         """
         if is_fp16_enabled():
-            with torch.cuda.amp.autocast(enabled=False):
+            with torch.amp.autocast(enabled=False):
                 return self._forward(m.float(), mask, add_output_to, inplace_safe)
         else:
             return self._forward(m, mask, add_output_to, inplace_safe)

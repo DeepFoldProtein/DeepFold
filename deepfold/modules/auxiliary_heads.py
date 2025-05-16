@@ -139,7 +139,7 @@ class DistogramHead(nn.Module):
 
     def forward(self, z: torch.Tensor) -> torch.Tensor:
         if is_fp16_enabled():
-            with torch.cuda.amp.autocast(enabled=False):
+            with torch.amp.autocast(enabled=False):
                 return self._forward(z.float())
         else:
             return self._forward(z)
