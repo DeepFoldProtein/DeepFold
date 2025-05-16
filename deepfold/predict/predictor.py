@@ -17,12 +17,7 @@ import torch.distributed
 from tqdm.auto import tqdm
 
 import deepfold.distributed as df_dist
-from deepfold.config import (
-    MONOMER_OUTPUT_SHAPES,
-    MULTIMER_OUTPUT_SHAPES,
-    AlphaFoldConfig,
-    FeatureConfig,
-)
+from deepfold.config import MONOMER_OUTPUT_SHAPES, MULTIMER_OUTPUT_SHAPES, AlphaFoldConfig, FeatureConfig
 from deepfold.data.process.pipeline import example_to_features
 from deepfold.distributed import model_parallel as mp
 from deepfold.modules import inductor as df_inductor
@@ -162,6 +157,11 @@ class Predictor:  # noqa: D101
                 logger.info("Stage timings written to %s", timings_path)
             except Exception:  # pragma: no cover
                 logger.exception("Failed to write timings JSON")
+
+        # Finalize
+        if self.args.mp_size > 0:
+            torch.distributed.barrier(group=mp.group())  # , device_ids=[df_dist.local_rank()])
+            df_dist.destroy()
 
     # ------------------------------------------------------------------
     # Device / distributed
@@ -359,8 +359,3 @@ class Predictor:  # noqa: D101
             MULTIMER_OUTPUT_SHAPES=MULTIMER_OUTPUT_SHAPES,
             unpad_to_schema_shape_=unpad_to_schema_shape_,
         )
-        if self.args.mp_size > 0:
-            torch.distributed.barrier(group=mp.group(), device_ids=[df_dist.local_rank()])
-            if mp.size() >= 2:
-                os.killpg(os.getpgid(os.getpid()), signal.SIGKILL)
-            df_dist.destroy()
