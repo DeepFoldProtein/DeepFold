@@ -23,7 +23,7 @@ from deepfold.modules.template_pair_embedder import TemplatePairEmbedder, Templa
 from deepfold.modules.template_pair_stack import TemplatePairStack
 from deepfold.modules.template_pointwise_attention import TemplatePointwiseAttention
 from deepfold.modules.template_projection import TemplateProjection
-from deepfold.utils.tensor_utils import add, batched_gather, tensor_tree_map
+from deepfold.utils.tensor_utils import add, batched_gather, masked_mean, tensor_tree_map
 
 logger = logging.getLogger(__name__)
 
@@ -106,10 +106,11 @@ class AlphaFold(nn.Module):
         # Forward iterations with autograd disabled:
         num_recycling_iters = batch["aatype"].shape[-1] - 1
         recycle_iter = 0
+        early_stop = False
         for _ in range(num_recycling_iters):
             feats = tensor_tree_map(fn=lambda t: t[..., recycle_iter].contiguous(), tree=batch)
             with torch.no_grad():
-                outputs, prevs = self._forward_iteration(
+                outputs, prevs, early_stop = self._forward_iteration(
                     feats=feats,
                     prevs=prevs,
                     gradient_checkpointing=False,
@@ -125,6 +126,8 @@ class AlphaFold(nn.Module):
                     recycle_hook(recycle_iter, feats, outputs)
 
                 del outputs
+            if early_stop:
+                break
             recycle_iter += 1  # For the last iteration
 
         # https://github.com/pytorch/pytorch/issues/65766
@@ -133,7 +136,7 @@ class AlphaFold(nn.Module):
 
         # Final iteration with autograd enabled:
         feats = tensor_tree_map(fn=lambda t: t[..., -1].contiguous(), tree=batch)
-        outputs, prevs = self._forward_iteration(
+        outputs, prevs, _ = self._forward_iteration(
             feats=feats,
             prevs=prevs,
             gradient_checkpointing=(self.training and mp.size() <= 1),
@@ -162,7 +165,7 @@ class AlphaFold(nn.Module):
         feats: Dict[str, torch.Tensor],
         prevs: Dict[str, torch.Tensor],
         gradient_checkpointing: bool,
-    ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+    ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor], bool]:
         outputs = {}
 
         # batch_dims = feats["target_feat"].shape[:-2]
@@ -209,7 +212,7 @@ class AlphaFold(nn.Module):
         z_prev = prevs.pop("z_prev")
         x_prev = prevs.pop("x_prev")
 
-        x_prev = _pseudo_beta(
+        pseudo_beta_prev = _pseudo_beta(
             aatype=feats["aatype"],
             all_atom_positions=x_prev,
             dtype=z.dtype,
@@ -220,11 +223,11 @@ class AlphaFold(nn.Module):
             z=z,
             m0_prev=m0_prev,
             z_prev=z_prev,
-            x_prev=x_prev,
+            x_prev=pseudo_beta_prev,
             inplace_safe=inplace_safe,
         )
 
-        del m0_prev, z_prev, x_prev
+        del m0_prev, z_prev, pseudo_beta_prev  # , x_prev
 
         # Embed templates and merge with MSA/pair representation:
         if self.config.templates_enabled:
@@ -324,13 +327,18 @@ class AlphaFold(nn.Module):
         outputs["final_atom_mask"] = feats["atom37_atom_exists"].to(dtype=outputs["final_atom_positions"].dtype)
         outputs["final_affine_tensor"] = outputs["sm_frames"][:, -1]
 
+        early_stop = False
+        if self.config.is_multimer:
+            early_stop = self._tolerance_reached(x_prev, outputs["final_atom_positions"], seq_mask)
+        del x_prev
+
         # Save embeddings for next recycling iteration:
         prevs = {}
         prevs["m0_prev"] = m[:, 0]
         prevs["z_prev"] = outputs["pair"]
         prevs["x_prev"] = outputs["final_atom_positions"]
 
-        return outputs, prevs
+        return outputs, prevs, early_stop
 
     def _initialize_prevs(
         self,
@@ -482,6 +490,32 @@ class AlphaFold(nn.Module):
             template_embeds["template_angle_embedding"] = a
 
         return template_embeds
+
+    def _tolerance_reached(
+        self,
+        prev_pos: torch.Tensor,
+        cur_pos: torch.Tensor,
+        mask: torch.Tensor,
+        eps: float = 1e-8,
+    ) -> bool:
+        """Early stopping criteria based on criteria used in AF2C."""
+
+        def pdist(points: torch.Tensor):
+            diff = points[..., :, None, :] - points[..., None, :, :]
+            return torch.sqrt(torch.sum(diff**2, dim=-1))
+
+        if not self.config.recycle_early_stop_enabled:
+            return False
+
+        if self.config.recycle_early_stop_tolerance < 0.0:
+            return False
+
+        ca_idx = rc.atom_order["CA"]
+        sq_diff = (pdist(cur_pos[..., ca_idx, :]) - pdist(prev_pos[..., ca_idx, :])) ** 2
+        pair_mask = mask[..., :, None] * mask[..., None, :]
+        sq_diff = masked_mean(mask=pair_mask, value=sq_diff, dim=list(range(len(mask.shape))))
+        diff = torch.sqrt(sq_diff + eps).item()
+        return diff <= self.config.recycle_early_stop_tolerance
 
     def register_dap_gradient_scaling_hooks(self, dap_size: int) -> None:
         num_registered_hooks = {
