@@ -264,9 +264,10 @@ class Predictor:  # noqa: D101
         model.eval()
         if self.args.precision == "bf16":
             enable_tf32()
-            model.to(dtype=torch.bfloat16)
-            model.structure_module.to(dtype=torch.float32)
-            model.auxiliary_heads.to(dtype=torch.float32)
+            for name, module in model.named_children():
+                if name in ("structure_module", "auxiliary_heads"):
+                    continue
+                module.to(dtype=torch.bfloat16)
         elif self.args.precision == "tf32":
             enable_tf32()
         elif self.args.precision == "fp32":

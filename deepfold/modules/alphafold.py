@@ -115,6 +115,10 @@ class AlphaFold(nn.Module):
                     gradient_checkpointing=False,
                 )
 
+                outputs["msa"] = outputs["msa"].to(dtype=torch.float32)
+                outputs["pair"] = outputs["pair"].to(dtype=torch.float32)
+                outputs["single"] = outputs["single"].to(dtype=torch.float32)
+
                 if recycle_hook is not None:  # Inference
                     aux_outputs = self.auxiliary_heads(outputs, feats["seq_mask"], asym_id)
                     outputs.update(aux_outputs)
