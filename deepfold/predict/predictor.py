@@ -91,7 +91,7 @@ class Predictor:  # noqa: D101
     # =====================================================================
     def run(self) -> None:  # noqa: D401
         """End‑to‑end execution with a tidy progress bar."""
-        timings: Dict[str, float] = {}
+        timings: dict[str, float] = {}
 
         feats: dict | None = None
         batch: dict[str, torch.Tensor] | None = None
