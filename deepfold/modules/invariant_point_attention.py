@@ -186,7 +186,7 @@ class InvariantPointAttention(nn.Module):
         ##########################
 
         if is_fp16_enabled():
-            with torch.cuda.amp.autocast(enabled=False):
+            with torch.amp.autocast(enabled=False):
                 a = torch.matmul(
                     q.float().movedim(-3, -2),  # q: [batch, num_heads, N_res, c_hidden]
                     k.float().movedim(-3, -1),  # k: [batch, num_heads, c_hidden, N_res]
