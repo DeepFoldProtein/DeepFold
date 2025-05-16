@@ -61,7 +61,8 @@ skip_glob = ["_runs/*", "csrc/*", ".poetry/*", ".venv/*"]
 poetry-plugin-export = ">=1.9"
 
 [tool.poetry.scripts]
+deepfold-monomer = "deepfold.monomer_builder:cli"
+deepfold-multimer = "deepfold.multimer_builder:cli"
 deepfold-predict = "deepfold.predict:main"
 deepfold-relax = "deepfold.relax:main"
-deepfold-data = "deepfold.cli:data"
 deepfold-tune = "deepfold.tune:main"
