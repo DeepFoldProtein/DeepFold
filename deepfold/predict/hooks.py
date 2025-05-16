@@ -81,7 +81,7 @@ class DefaultHooks:  # pragma: no cover – reference implementation mirrors ori
     # Pipeline stages (no‑op unless stated otherwise)
     # ------------------------------------------------------------------
     def after_features(self, feats: dict, **_: object) -> None:  # noqa: D401
-        """No‑op – extension point."""
+        logger.info("input_feature_names=%s", repr(list(feats.keys())))
 
     def after_batch(self, batch: dict, **_: object) -> None:  # noqa: D401
         """No‑op – extension point."""
