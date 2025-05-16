@@ -347,7 +347,7 @@ class AlphaFoldConfig:
         precision: str = "fp32",
         enable_ptm: bool = False,
         enable_templates: bool = False,
-        inference_chunk_size: Optional[int] = 256,
+        inference_chunk_size: Optional[int] = 128,
         inference_block_size: Optional[int] = None,
         **additional_options,
     ) -> "AlphaFoldConfig":
@@ -428,22 +428,22 @@ def _inference_stage(
 ) -> dict:
     return {
         "template_pair_stack_config": {
-            "chunk_size_tri_att": min(256, chunk_size),
+            "chunk_size_tri_att": chunk_size,
             "block_size_tri_mul": block_size,
         },
         "template_pointwise_attention_config": {
             "chunk_size": chunk_size,
         },
         "extra_msa_stack_config": {
-            "chunk_size_msa_att": min(256, chunk_size),
+            "chunk_size_msa_att": chunk_size,
             "chunk_size_opm": chunk_size,
-            "chunk_size_tri_att": min(256, chunk_size),
+            "chunk_size_tri_att": chunk_size,
             "block_size_tri_mul": block_size,
         },
         "evoformer_stack_config": {
-            "chunk_size_msa_att": min(256, chunk_size),
+            "chunk_size_msa_att": chunk_size,
             "chunk_size_opm": chunk_size,
-            "chunk_size_tri_att": min(256, chunk_size),
+            "chunk_size_tri_att": chunk_size,
             "block_size_tri_mul": block_size,
         },
     }
