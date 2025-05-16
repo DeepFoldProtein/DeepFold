@@ -136,7 +136,7 @@ class Predictor:  # noqa: D101
             ("Create batch", _batch),
             ("Init model", _init),
             ("Inference", _infer_stage),
-            ("Post‑process", _post),
+            ("Post-process", _post),
         ]
 
         # ------------------------------------------------------------------
