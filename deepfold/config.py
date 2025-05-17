@@ -347,6 +347,7 @@ class AlphaFoldConfig:
         precision: str = "fp32",
         enable_ptm: bool = False,
         enable_templates: bool = False,
+        embed_torsion_angles: bool = True,
         inference_chunk_size: Optional[int] = 128,
         inference_block_size: Optional[int] = None,
         **additional_options,
@@ -354,7 +355,7 @@ class AlphaFoldConfig:
         cfg = {
             "is_multimer": is_multimer,
             "templates_enabled": enable_templates,
-            "embed_template_torsion_angles": enable_templates,
+            "embed_template_torsion_angles": enable_templates and embed_torsion_angles,
         }
 
         if is_multimer:

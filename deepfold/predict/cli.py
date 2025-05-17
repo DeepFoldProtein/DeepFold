@@ -61,6 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Flags
     parser.add_argument("--save-recycle", action="store_true", help="Write PDB for every recycle")
     parser.add_argument("--save-all", action="store_true", help="Write MSA/pair representations to result file")
+    parser.add_argument("--exclude-template-torsion-angles", action="store_true", help="Exclude template torsions")
     parser.add_argument("--subsample-templates", action="store_true", help="Sub‑sample templates")
     parser.add_argument("--use-multimer-templates", dest="multimer_templates", type=str, default="")
     parser.add_argument("--benchmark", action="store_true", help="Skip writing heavy output pickle (timing only)")

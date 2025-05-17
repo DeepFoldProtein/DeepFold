@@ -69,6 +69,10 @@ class Predictor:  # noqa: D101
         if self.args.max_recycling_iters >= 0:
             self._feat_kwargs["max_recycling_iters"] = self.args.max_recycling_iters
 
+        # Override embed template torsion angles after preset construction
+        if self.args.exclude_template_torsion_angles:
+            self._model_kwargs["embed_torsion_angles"] = False
+
         self.suffix = f"_{self.args.suffix}" if self.args.suffix else ""
 
         # ------------------------------------------------------------------
@@ -138,7 +142,13 @@ class Predictor:  # noqa: D101
         # Master rank: tqdm; workers: direct execution
         # ------------------------------------------------------------------
         if df_dist.is_master_process():
-            with tqdm(total=len(stages), desc="Pipeline", dynamic_ncols=True, leave=False) as pbar:
+            with tqdm(
+                total=len(stages),
+                desc="Pipeline",
+                dynamic_ncols=True,
+                leave=False,
+                bar_format=r"[{n}/{total}] {desc} {elapsed}",
+            ) as pbar:
                 for label, action in stages:
                     pbar.set_description(label)
                     _time(label, action)
@@ -305,13 +315,7 @@ class Predictor:  # noqa: D101
                 total_recycles = getattr(self._feat_config, "max_recycling_iters", None)
             if total_recycles is not None:
                 total_recycles += 1  # include initial pass (recycle 0)
-            recycle_bar = tqdm(
-                total=total_recycles,
-                desc="Recycle",
-                position=1,
-                dynamic_ncols=True,
-                leave=False,
-            )
+            recycle_bar = tqdm(total=total_recycles, desc="Recycle", position=1, dynamic_ncols=True, leave=False)
 
         def recycle_hook(i: int, f: dict, o: dict):  # noqa: D401
             """Proxy to user hook + bar update."""

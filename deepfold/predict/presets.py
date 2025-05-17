@@ -49,6 +49,7 @@ def get_preset_opts(preset: str) -> Tuple[str, tuple[dict[str, Any], dict[str, A
         is_multimer=is_multimer,
         enable_ptm=enable_ptm,
         enable_templates=enable_templates,
+        embed_template_torsion_angles=enable_templates,
         inference_chunk_size=4,
         inference_block_size=256,
     )
@@ -57,6 +58,7 @@ def get_preset_opts(preset: str) -> Tuple[str, tuple[dict[str, Any], dict[str, A
         is_multimer=is_multimer,
         enable_ptm=enable_ptm,
         enable_templates=enable_templates,
+        embed_template_torsion_angles=enable_templates,
         fuse_projection_weights=fuse_projection_weights,
     )
 
