@@ -14,6 +14,7 @@ import numpy as np
 import torch
 
 from deepfold.modules.alphafold import AlphaFold
+from deepfold.utils.func_utils import ignore_unmatched_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +124,7 @@ def assign(translation_dict, orig_weights):
                 raise
 
 
+@ignore_unmatched_kwargs
 def import_jax_weights_(
     model: AlphaFold,
     npz_path: str,
@@ -508,7 +510,7 @@ def import_jax_weights_(
     # fmt: off
     if is_multimer:
         del translations["evoformer"]["pair_activiations"]
-        del translations["evoformer"]["template_embedding"]["single_template_embedding"]["template_pair_stack"]  
+        del translations["evoformer"]["template_embedding"]["single_template_embedding"]["template_pair_stack"]
 
         translations["predicted_aligned_error_head"] = {"logits": LinearParams(model.auxiliary_heads.tm.linear)}
 
