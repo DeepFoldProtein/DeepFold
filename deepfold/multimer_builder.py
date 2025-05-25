@@ -124,7 +124,7 @@ def parse_recipe(recipe: str | Path) -> List[Structure]:
         _validate_struct(struct)
 
         entities = [Entity(feature_filepath=Path(ent["path"]), num_sym=int(ent.get("num_sym", 1))) for ent in struct["entities"]]
-        if struct["msa_path"]:
+        if "msa_path" in struct:
             msa_strings = Path(struct["msa_path"]).read_text().strip(" \n\r\t\x00").split("\x00")
         else:
             msa_strings = [""] * len(entities)
