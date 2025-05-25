@@ -52,6 +52,7 @@ class Structure:
 
     name: str
     entities: List[Entity] = field(default_factory=list)
+    msa_strings: List[str] = field(default_factory=list)
     version: int = 2
 
 
@@ -123,7 +124,8 @@ def parse_recipe(recipe: str | Path) -> List[Structure]:
         _validate_struct(struct)
 
         entities = [Entity(feature_filepath=Path(ent["path"]), num_sym=int(ent.get("num_sym", 1))) for ent in struct["entities"]]
-        structures.append(Structure(name=struct["name"], entities=entities))
+        msa_strings = Path(struct["msa_path"]).read_text().strip(" \n\r\t\x00").split("\x00")
+        structures.append(Structure(name=struct["name"], entities=entities, msa_strings=msa_strings))
 
     return structures
 
@@ -147,9 +149,10 @@ def build_features(
     num_units: List[int] = []
     monomer_features: Dict[str, dict] = {}
     stoichiometry_parts: List[str] = []
+    paired_msas: Dict[str, str] = {}
 
     # ---------- Load and validate monomer feature files ----------
-    for chain_id, entity in zip(string.ascii_uppercase, structure.entities):
+    for chain_id, entity, msa in zip(string.ascii_uppercase, structure.entities, structure.msa_strings):
         monomer_path = source_root / entity.feature_filepath
         if not monomer_path.exists():
             raise FileNotFoundError(f"Monomer feature file not found: {monomer_path}")
@@ -158,9 +161,10 @@ def build_features(
         num_units.append(entity.num_sym)
         stoichiometry_parts.append(f"{chain_id}{entity.num_sym}")
         monomer_features[chain_id] = load_pickle(monomer_path)
+        paired_msas[chain_id] = msa
 
     complex_info = ComplexInfo(descriptions=descriptions, num_units=num_units)
-    combined_features = process_multimer_features(complex=complex_info, all_monomer_features=monomer_features)
+    combined_features = process_multimer_features(complex=complex_info, all_monomer_features=monomer_features, paired_a3m_strings=paired_msas)
 
     dump_pickle(combined_features, out_dir / "features.pkz")
 
@@ -190,6 +194,7 @@ def _example_recipe() -> str:
                     {"path": "features/chainA.pkz", "num_sym": 2},
                     {"path": "features/chainB.pkz", "num_sym": 3},
                 ],
+                "msa_path": "msas/paired.a3m",
             }
         ]
     }
