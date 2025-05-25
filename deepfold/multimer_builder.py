@@ -124,7 +124,10 @@ def parse_recipe(recipe: str | Path) -> List[Structure]:
         _validate_struct(struct)
 
         entities = [Entity(feature_filepath=Path(ent["path"]), num_sym=int(ent.get("num_sym", 1))) for ent in struct["entities"]]
-        msa_strings = Path(struct["msa_path"]).read_text().strip(" \n\r\t\x00").split("\x00")
+        if struct["msa_path"]:
+            msa_strings = Path(struct["msa_path"]).read_text().strip(" \n\r\t\x00").split("\x00")
+        else:
+            msa_strings = [""] * len(entities)
         structures.append(Structure(name=struct["name"], entities=entities, msa_strings=msa_strings))
 
     return structures
@@ -161,7 +164,8 @@ def build_features(
         num_units.append(entity.num_sym)
         stoichiometry_parts.append(f"{chain_id}{entity.num_sym}")
         monomer_features[chain_id] = load_pickle(monomer_path)
-        paired_msas[chain_id] = msa
+        if msa:  # If empty
+            paired_msas[chain_id] = msa
 
     complex_info = ComplexInfo(descriptions=descriptions, num_units=num_units)
     combined_features = process_multimer_features(complex=complex_info, all_monomer_features=monomer_features, paired_a3m_strings=paired_msas)
