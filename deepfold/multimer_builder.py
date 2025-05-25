@@ -168,7 +168,12 @@ def build_features(
             paired_msas[chain_id] = msa
 
     complex_info = ComplexInfo(descriptions=descriptions, num_units=num_units)
-    combined_features = process_multimer_features(complex=complex_info, all_monomer_features=monomer_features, paired_a3m_strings=paired_msas)
+    combined_features = process_multimer_features(
+        complex=complex_info,
+        all_monomer_features=monomer_features,
+        paired_a3m_strings=paired_msas,
+        pair_with_identifier=True,
+    )
 
     dump_pickle(combined_features, out_dir / "features.pkz")
 
