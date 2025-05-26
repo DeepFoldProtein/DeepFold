@@ -164,7 +164,8 @@ def build_features(
         num_units.append(entity.num_sym)
         stoichiometry_parts.append(f"{chain_id}{entity.num_sym}")
         monomer_features[chain_id] = load_pickle(monomer_path)
-        if msa:  # If empty
+        msa = msa.strip()
+        if msa:
             paired_msas[chain_id] = msa
 
     complex_info = ComplexInfo(descriptions=descriptions, num_units=num_units)
@@ -172,7 +173,6 @@ def build_features(
         complex=complex_info,
         all_monomer_features=monomer_features,
         paired_a3m_strings=paired_msas,
-        pair_with_identifier=True,
     )
 
     dump_pickle(combined_features, out_dir / "features.pkz")

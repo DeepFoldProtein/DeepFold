@@ -156,6 +156,7 @@ def create_msa_features(
     a3m_strings: List[str],
     sequence: str | None = None,
     use_identifiers: bool = False,
+    deduplicate: bool = True,
 ) -> dict:
     msas = []
     deletion_matrices = []
@@ -182,9 +183,10 @@ def create_msa_features(
         if not msa:
             raise ValueError(f"MSA {msa_index} must contain at least one sequence.")
         for sequence_index, sequence in enumerate(msa):
-            if sequence in seen_sequences:
-                continue
-            seen_sequences.add(sequence)
+            if deduplicate:
+                if sequence in seen_sequences:
+                    continue
+                seen_sequences.add(sequence)
             int_msa.append([rc.HHBLITS_AA_TO_ID[res] for res in sequence])
             deletion_matrix.append(deletion_matrices[msa_index][sequence_index])
             identifiers.append(descriptions[msa_index][sequence_index])

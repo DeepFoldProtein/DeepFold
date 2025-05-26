@@ -217,15 +217,9 @@ def create_multimer_features(
     valid_feats = (*msa_pairing.MSA_FEATURES, "msa_identifiers")
     feats = {
         f"{k}_all_seq": v
-        for k, v in create_msa_features(
-            paired_a3m_strings,
-            sequence=sequence,
-            use_identifiers=True,
-        ).items()
+        for k, v in create_msa_features(paired_a3m_strings, sequence=sequence, use_identifiers=True, deduplicate=False).items()
         if k in valid_feats
     }
-    for i in range(len(feats["msa_identifiers_all_seq"])):
-        feats["msa_identifiers_all_seq"][i] = f"pair:{i:d}"
 
     return feats
 
@@ -235,13 +229,14 @@ def process_multimer_features(
     all_monomer_features: Mapping[str, dict],
     pair_with_identifier: bool = False,
     a3m_strings_with_identifiers: Mapping[str, str] | None = None,
-    paired_a3m_strings: Mapping[str, str] = dict(),
+    paired_a3m_strings: Mapping[str, str] | None = None,
     min_num_clusters: int = 508,
 ) -> dict:
     """Create a multimer input features."""
 
     all_chain_features = {}
     is_homomer_or_monomer = len(complex.num_units) == 1
+    with_paired_msa = paired_a3m_strings is not None and len(paired_a3m_strings) != 0
 
     for cid, desc, num in zip(protein.PDB_CHAIN_IDS, complex.descriptions, complex.num_units):
         assert cid is not None
@@ -264,17 +259,17 @@ def process_multimer_features(
             )
 
         # Process custom paired MSA:
-        paired_a3m_str = paired_a3m_strings.get(desc, "")
-        multimer_features = create_multimer_features(
-            [paired_a3m_str],
-            sequence=chain_features["sequence"].item().decode("utf-8"),
-        )
+        if with_paired_msa:
+            paired_a3m_str = paired_a3m_strings.get(desc, "")
+            multimer_features = create_multimer_features([paired_a3m_str], sequence=chain_features["sequence"].item().decode("utf-8"))
 
-        if is_homomer_or_monomer:
-            chain_features.update(multimer_features)
-        else:
             for k, v in multimer_features.items():
-                chain_features[k] = np.concatenate([chain_features[k], v], axis=0)
+                print("#", cid, k, v.shape)
+
+            chain_features.update(multimer_features)
+
+            # for k, v in multimer_features.items():
+            # chain_features[k] = np.concatenate([chain_features[k], v], axis=0)
 
         # Convert monomer features to multimer features:
         chain_features = convert_monomer_features(chain_features)
@@ -283,11 +278,66 @@ def process_multimer_features(
             chain_id = f"{cid}_{i+1}"
             all_chain_features[chain_id] = copy.deepcopy(chain_features)
 
+        # TODO: Debug
+        # for k, v in chain_features.items():
+        #     if "msa" in k:
+        #         print(cid, k, v.shape)
+
     # Add assembly features:
     all_chain_features = add_assembly_features(all_chain_features)
 
+    for c, x in all_chain_features.items():
+        for k, v in x.items():
+            if "msa" in k:
+                print("^", c, k, v.shape)
+
     # Pair and merge features:
-    example = pair_and_merge(all_chain_features)
+    if with_paired_msa:
+        process_unmerged_features(all_chain_features)
+
+        # for c, x in enumerate(updated_chains):
+        for c, x in all_chain_features.items():
+            for k, v in x.items():
+                if "msa" in k:
+                    print("$", c, k, v.shape)
+
+        np_chains_list = list(all_chain_features.values())
+        pair_msa_sequences = not _is_homomer_or_monomer(np_chains_list)
+        chain_keys = np_chains_list[0].keys()
+        updated_chains = []
+        for chain_num, chain in enumerate(np_chains_list):
+            new_chain = {k: v for k, v in chain.items() if not k.endswith("_all_seq")}
+            for feature_name in chain_keys:
+                if feature_name.endswith("_all_seq"):
+                    feats_padded = msa_pairing.pad_features(chain[feature_name], feature_name)
+                    new_chain[feature_name] = feats_padded
+            new_chain["num_alignments_all_seq"] = np.asarray(len(np_chains_list[chain_num]["msa_all_seq"]))
+            updated_chains.append(new_chain)
+
+        np_chains_list = updated_chains
+        np_chains_list = crop_chains(
+            np_chains_list,
+            msa_crop_size=MSA_CROP_SIZE,
+            pair_msa_sequences=pair_msa_sequences,
+            max_templates=MAX_TEMPLATES,
+        )
+
+        common_features = set([*np_chains_list[0]]).intersection(*np_chains_list)
+        np_chains_list = [{k: v for k, v in chain.items() if k in common_features} for chain in np_chains_list]
+
+        # for x in np_chains_list:
+        #     for k, v in x.items():
+        #         if "msa" in k:
+        #             print(k, v.shape)
+
+        np_example = msa_pairing.merge_chain_features(
+            np_chains_list=np_chains_list,
+            pair_msa_sequences=pair_msa_sequences,
+            max_templates=MAX_TEMPLATES,
+        )
+        example = process_final(np_example)
+    else:
+        example = pair_and_merge(all_chain_features)
 
     example = pad_msa(example, min_num_clusters)
 
@@ -320,12 +370,14 @@ def pair_and_merge(all_chain_features: MutableMapping[str, dict]) -> dict:
     if pair_msa_sequences:
         np_chains_list = msa_pairing.create_paired_features(chains=np_chains_list)
         np_chains_list = msa_pairing.deduplicate_unpaired_sequences(np_chains_list)
+
     np_chains_list = crop_chains(
         np_chains_list,
         msa_crop_size=MSA_CROP_SIZE,
         pair_msa_sequences=pair_msa_sequences,
         max_templates=MAX_TEMPLATES,
     )
+
     # `merge_chain_features` crashes if there are additional features only present in one chain.
     common_features = set([*np_chains_list[0]]).intersection(*np_chains_list)
     np_chains_list = [{k: v for k, v in chain.items() if k in common_features} for chain in np_chains_list]
@@ -335,6 +387,7 @@ def pair_and_merge(all_chain_features: MutableMapping[str, dict]) -> dict:
         max_templates=MAX_TEMPLATES,
     )
     np_example = process_final(np_example)
+
     return np_example
 
 
