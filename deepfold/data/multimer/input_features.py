@@ -262,14 +262,7 @@ def process_multimer_features(
         if with_paired_msa:
             paired_a3m_str = paired_a3m_strings.get(desc, "")
             multimer_features = create_multimer_features([paired_a3m_str], sequence=chain_features["sequence"].item().decode("utf-8"))
-
-            for k, v in multimer_features.items():
-                print("#", cid, k, v.shape)
-
             chain_features.update(multimer_features)
-
-            # for k, v in multimer_features.items():
-            # chain_features[k] = np.concatenate([chain_features[k], v], axis=0)
 
         # Convert monomer features to multimer features:
         chain_features = convert_monomer_features(chain_features)
@@ -278,28 +271,12 @@ def process_multimer_features(
             chain_id = f"{cid}_{i+1}"
             all_chain_features[chain_id] = copy.deepcopy(chain_features)
 
-        # TODO: Debug
-        # for k, v in chain_features.items():
-        #     if "msa" in k:
-        #         print(cid, k, v.shape)
-
     # Add assembly features:
     all_chain_features = add_assembly_features(all_chain_features)
-
-    for c, x in all_chain_features.items():
-        for k, v in x.items():
-            if "msa" in k:
-                print("^", c, k, v.shape)
 
     # Pair and merge features:
     if with_paired_msa:
         process_unmerged_features(all_chain_features)
-
-        # for c, x in enumerate(updated_chains):
-        for c, x in all_chain_features.items():
-            for k, v in x.items():
-                if "msa" in k:
-                    print("$", c, k, v.shape)
 
         np_chains_list = list(all_chain_features.values())
         pair_msa_sequences = not _is_homomer_or_monomer(np_chains_list)
@@ -324,12 +301,6 @@ def process_multimer_features(
 
         common_features = set([*np_chains_list[0]]).intersection(*np_chains_list)
         np_chains_list = [{k: v for k, v in chain.items() if k in common_features} for chain in np_chains_list]
-
-        # for x in np_chains_list:
-        #     for k, v in x.items():
-        #         if "msa" in k:
-        #             print(k, v.shape)
-
         np_example = msa_pairing.merge_chain_features(
             np_chains_list=np_chains_list,
             pair_msa_sequences=pair_msa_sequences,
