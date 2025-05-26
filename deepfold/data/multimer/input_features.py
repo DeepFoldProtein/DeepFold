@@ -279,7 +279,7 @@ def process_multimer_features(
         process_unmerged_features(all_chain_features)
 
         np_chains_list = list(all_chain_features.values())
-        pair_msa_sequences = not _is_homomer_or_monomer(np_chains_list)
+        # pair_msa_sequences = not _is_homomer_or_monomer(np_chains_list)
         chain_keys = np_chains_list[0].keys()
         updated_chains = []
         for chain_num, chain in enumerate(np_chains_list):
@@ -295,7 +295,7 @@ def process_multimer_features(
         np_chains_list = crop_chains(
             np_chains_list,
             msa_crop_size=MSA_CROP_SIZE,
-            pair_msa_sequences=pair_msa_sequences,
+            pair_msa_sequences=True,
             max_templates=MAX_TEMPLATES,
         )
 
@@ -303,7 +303,7 @@ def process_multimer_features(
         np_chains_list = [{k: v for k, v in chain.items() if k in common_features} for chain in np_chains_list]
         np_example = msa_pairing.merge_chain_features(
             np_chains_list=np_chains_list,
-            pair_msa_sequences=pair_msa_sequences,
+            pair_msa_sequences=True,
             max_templates=MAX_TEMPLATES,
         )
         example = process_final(np_example)
