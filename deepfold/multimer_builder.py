@@ -177,7 +177,7 @@ def parse_recipe(recipe: str | Path) -> List[Structure]:
             if "templates" in entity:
                 template_feats = _parse_templates(entity["templates"])
             else:
-                template_feats = {}
+                template_feats = None
             entities.append(
                 Entity(
                     feature_filepath=Path(entity["path"]),
