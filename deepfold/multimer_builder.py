@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import re
 import string
 import sys
 from dataclasses import dataclass, field
@@ -20,8 +19,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm.auto import tqdm
 
+from deepfold.common import protein
+from deepfold.common import residue_constants as rc
 from deepfold.data.multimer.input_features import ComplexInfo, process_multimer_features
-from deepfold.data.search.parsers import parse_fasta
 from deepfold.eval.plot import plot_msa
 from deepfold.utils.file_utils import dump_pickle, load_pickle
 from deepfold.utils.log_utils import setup_logging
@@ -47,6 +47,7 @@ class Entity:
 
     feature_filepath: Path
     num_sym: int = 1
+    templates: Optional[dict[str, np.ndarray]] = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +94,38 @@ def _validate_struct(struct: dict) -> None:
             raise ValueError("Entity 'num_sym' must be an int if provided")
 
 
+def _parse_templates(
+    templates: list[dict],
+    plddt_cutoff: float = 70.0,
+) -> dict:
+    template_aatype = []
+    template_all_atom_positions = []
+    template_all_atom_mask = []
+
+    for dic in templates:
+        pdb_path = Path(dic["pdb_path"])
+        pdb_str = pdb_path.read_text()
+        prot = protein.from_pdb_string(pdb_str, dic["chain_id"])
+
+        seq = rc.aatype_to_str_sequence(prot.aatype)
+        aatype = rc.sequence_to_onehot(seq, rc.HHBLITS_AA_TO_ID)
+        template_aatype.append(aatype)
+
+        template_all_atom_positions.append(prot.atom_positions)
+
+        mask = prot.atom_mask * (prot.b_factors > plddt_cutoff)
+        if "regions" in dic:
+            for low, high in dic["regions"]:
+                mask[low - 1 : high, :] *= 1
+        template_all_atom_mask.append(mask)
+
+    return {
+        "template_aatype": np.stack(template_aatype),
+        "template_all_atom_positions": np.stack(template_all_atom_positions),
+        "template_all_atom_mask": np.stack(template_all_atom_mask),
+    }
+
+
 def parse_recipe(recipe: str | Path) -> List[Structure]:
     """Parse and validate a JSON‑encoded multimer recipe.
 
@@ -126,11 +159,25 @@ def parse_recipe(recipe: str | Path) -> List[Structure]:
     for struct in data["structures"]:
         _validate_struct(struct)
 
-        entities = [Entity(feature_filepath=Path(ent["path"]), num_sym=int(ent.get("num_sym", 1))) for ent in struct["entities"]]
         if "msa_path" in struct:
             msa_strings = Path(struct["msa_path"]).read_text().strip(" \n\r\t\x00").split("\x00")
         else:
             msa_strings = None
+
+        entities = []
+        for entity in struct["entities"]:
+            if "templates" in entity:
+                template_feats = _parse_templates(entity["templates"])
+            else:
+                template_feats = {}
+            entities.append(
+                Entity(
+                    feature_filepath=Path(entity["path"]),
+                    num_sym=int(entity.get("num_sym", 1)),
+                    templates=template_feats,
+                )
+            )
+
         structures.append(Structure(name=struct["name"], entities=entities, msa_strings=msa_strings))
 
     return structures
@@ -159,13 +206,13 @@ def build_features(
     paired_msas: Dict[str, str] = {}
 
     # ---------- Load and validate monomer feature files ----------
-    override_msas = structure.msa_strings is None
-    if override_msas:
-        msa_strings = [""] * len(structure.entities)
-    else:
-        msa_strings = structure.msa_strings
+    override_msas = structure.msa_strings is not None
 
-    for chain_id, entity, msa in zip(string.ascii_uppercase, structure.entities, msa_strings):
+    # for chain_id, entity, msa in zip(string.ascii_uppercase, structure.entities, msa_strings):
+    for chain_id, index in zip(string.ascii_uppercase, range(len(structure.entities))):
+        entity = structure.entities[index]
+        msa = structure.msa_strings[index] if override_msas else ""
+
         monomer_path = source_root / entity.feature_filepath
         if not monomer_path.exists():
             raise FileNotFoundError(f"Monomer feature file not found: {monomer_path}")
@@ -173,11 +220,25 @@ def build_features(
         descriptions.append(chain_id)
         num_units.append(entity.num_sym)
         stoichiometry_parts.append(f"{chain_id}{entity.num_sym}")
-        feats = load_pickle(monomer_path)
-        if override_msas:
-            for key in ["msa", "msa_mask", "deletion_matrix", "deletion_matrix_int", "deletion_mean"]:
-                del feats[key]
+
+        feats: dict[str, np.ndarray] = load_pickle(monomer_path)
+
+        if entity.templates is not None:
+            for key in [
+                "template_domain_names",
+                "template_sequence",
+                "template_aatype",
+                "template_all_atom_positions",
+                "template_all_atom_mask",
+                "template_sum_probs",
+            ]:
+                if key in feats:
+                    del feats[key]
+
+            feats.update(entity.templates)
+
         monomer_features[chain_id] = feats
+
         msa = msa.strip()
         if msa:
             paired_msas[chain_id] = msa
@@ -189,6 +250,10 @@ def build_features(
         paired_a3m_strings=paired_msas,
         use_paired_a3m_descr=parse_pair_descr,
     )
+
+    # Uniform sampling
+    if not parse_pair_descr:
+        combined_features.pop("msa_weight")
 
     for k, v in combined_features.items():
         logger.info(f"{k}: {v.dtype}{list(v.shape)}")
@@ -218,7 +283,17 @@ def _example_recipe() -> str:
             {
                 "name": "multimer",
                 "entities": [
-                    {"path": "features/chainA.pkz", "num_sym": 2},
+                    {
+                        "path": "features/chainA.pkz",
+                        "num_sym": 2,
+                        "templates": [
+                            {
+                                "pdb_path": "pred/chainA/model_3.pdb",
+                                "chain_id": "A",
+                                "regions": [[1, 45], [60, 98]],
+                            },
+                        ],
+                    },
                     {"path": "features/chainB.pkz", "num_sym": 3},
                 ],
                 "msa_path": "msas/paired.a3m",
@@ -304,6 +379,7 @@ def cli(argv: List[str] | None = None) -> None:  # pragma: no cover
 
     for struct in tqdm(structures, desc="Building multimers", unit="structure"):
         try:
+            logger.info("Build multimer: %s", struct.name)
             meta = build_features(
                 struct,
                 output_root=args.output_dir,
