@@ -1,5 +1,5 @@
 import copy
-from typing import Dict, Mapping, Sequence
+from typing import Dict, Sequence
 
 import numpy as np
 import torch

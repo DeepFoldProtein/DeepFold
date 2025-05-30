@@ -4,6 +4,7 @@
 # Copyright 2024 DeepFold Team
 
 
+import re
 from typing import List, Sequence
 
 import numpy as np
@@ -14,6 +15,8 @@ from deepfold.data.search.mmcif import zero_center_atom_positions
 from deepfold.data.search.parsers import parse_a3m, parse_hhr, parse_hmmsearch_sto
 from deepfold.data.search.templates import TemplateHit, TemplateHitFeaturizer
 from deepfold.utils.datetime_utils import datetime_from_string
+
+extract_score = lambda text: float(match.group(1)) if (match := re.search(r"score=([-]?\d*\.?\d+)", text)) else np.nan
 
 
 def create_sequence_features(sequence: str, domain_name: str) -> dict:
@@ -156,6 +159,7 @@ def create_msa_features(
     a3m_strings: List[str],
     sequence: str | None = None,
     use_identifiers: bool = False,
+    use_scores: bool = False,
     deduplicate: bool = True,
 ) -> dict:
     msas = []
@@ -178,7 +182,9 @@ def create_msa_features(
     int_msa = []
     deletion_matrix = []
     identifiers = []
+    alignment_scores = []
     seen_sequences = set()
+
     for msa_index, msa in enumerate(msas):
         if not msa:
             raise ValueError(f"MSA {msa_index} must contain at least one sequence.")
@@ -190,6 +196,7 @@ def create_msa_features(
             int_msa.append([rc.HHBLITS_AA_TO_ID[res] for res in sequence])
             deletion_matrix.append(deletion_matrices[msa_index][sequence_index])
             identifiers.append(descriptions[msa_index][sequence_index])
+            alignment_scores.append(extract_score(descriptions[msa_index][sequence_index]))
 
     num_res = len(msas[0][0])  # First sequence must be the query sequence.
     num_alignments = len(int_msa)
@@ -201,5 +208,8 @@ def create_msa_features(
 
     if use_identifiers:
         msa_features["msa_identifiers"] = np.array(identifiers, dtype=np.object_)
+
+    if use_scores:
+        msa_features["alignment_scores"] = np.array(alignment_scores, dtype=np.float32)
 
     return msa_features

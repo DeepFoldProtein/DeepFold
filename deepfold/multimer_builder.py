@@ -9,16 +9,19 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import string
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Sequence
+from typing import Dict, List, Optional, Sequence
 
 import matplotlib.pyplot as plt
+import numpy as np
 from tqdm.auto import tqdm
 
 from deepfold.data.multimer.input_features import ComplexInfo, process_multimer_features
+from deepfold.data.search.parsers import parse_fasta
 from deepfold.eval.plot import plot_msa
 from deepfold.utils.file_utils import dump_pickle, load_pickle
 from deepfold.utils.log_utils import setup_logging
@@ -31,7 +34,7 @@ __all__ = [
     "cli",
 ]
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -52,7 +55,7 @@ class Structure:
 
     name: str
     entities: List[Entity] = field(default_factory=list)
-    msa_strings: List[str] = field(default_factory=list)
+    msa_strings: Optional[List[str]] = None
     version: int = 2
 
 
@@ -127,7 +130,7 @@ def parse_recipe(recipe: str | Path) -> List[Structure]:
         if "msa_path" in struct:
             msa_strings = Path(struct["msa_path"]).read_text().strip(" \n\r\t\x00").split("\x00")
         else:
-            msa_strings = [""] * len(entities)
+            msa_strings = None
         structures.append(Structure(name=struct["name"], entities=entities, msa_strings=msa_strings))
 
     return structures
@@ -139,6 +142,7 @@ def build_features(
     output_root: Path,
     source_root: Path,
     skip_plot: bool = False,
+    parse_pair_descr: bool = False,
 ) -> Dict[str, str]:
     """Generate DeepFold multimer features and (optionally) an MSA‑depth plot."""
 
@@ -155,7 +159,13 @@ def build_features(
     paired_msas: Dict[str, str] = {}
 
     # ---------- Load and validate monomer feature files ----------
-    for chain_id, entity, msa in zip(string.ascii_uppercase, structure.entities, structure.msa_strings):
+    override_msas = structure.msa_strings is None
+    if override_msas:
+        msa_strings = [""] * len(structure.entities)
+    else:
+        msa_strings = structure.msa_strings
+
+    for chain_id, entity, msa in zip(string.ascii_uppercase, structure.entities, msa_strings):
         monomer_path = source_root / entity.feature_filepath
         if not monomer_path.exists():
             raise FileNotFoundError(f"Monomer feature file not found: {monomer_path}")
@@ -163,7 +173,11 @@ def build_features(
         descriptions.append(chain_id)
         num_units.append(entity.num_sym)
         stoichiometry_parts.append(f"{chain_id}{entity.num_sym}")
-        monomer_features[chain_id] = load_pickle(monomer_path)
+        feats = load_pickle(monomer_path)
+        if override_msas:
+            for key in ["msa", "msa_mask", "deletion_matrix", "deletion_matrix_int", "deletion_mean"]:
+                del feats[key]
+        monomer_features[chain_id] = feats
         msa = msa.strip()
         if msa:
             paired_msas[chain_id] = msa
@@ -173,7 +187,11 @@ def build_features(
         complex=complex_info,
         all_monomer_features=monomer_features,
         paired_a3m_strings=paired_msas,
+        use_paired_a3m_descr=parse_pair_descr,
     )
+
+    for k, v in combined_features.items():
+        logger.info(f"{k}: {v.dtype}{list(v.shape)}")
 
     dump_pickle(combined_features, out_dir / "features.pkz")
 
@@ -214,7 +232,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Build DeepFold multimer features from per‑monomer feature files.",
     )
-    parser.add_argument("-i", "--input", type=Path, help="Path to recipe JSON.")
+    parser.add_argument(
+        "-i",
+        "--input",
+        type=Path,
+        help="Path to recipe JSON.",
+    )
     parser.add_argument(
         "-s",
         "--source-dir",
@@ -228,8 +251,22 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=Path.cwd(),
         help="Directory in which to write outputs (defaults to CWD)",
     )
-    parser.add_argument("--skip-plot", action="store_true", help="Do not generate msa_depth.png")
-    parser.add_argument("--show-example", action="store_true", help="Print example recipe and exit")
+    parser.add_argument(
+        "--skip-plot",
+        action="store_true",
+        help="Do not generate msa_depth.png",
+    )
+    parser.add_argument(
+        "--show-example",
+        action="store_true",
+        help="Print example recipe and exit",
+    )
+    parser.add_argument(
+        "--parse-pair-descr",
+        dest="parse_pair_descr",
+        action="store_true",
+        help="Parse alignment score from the descriptions",
+    )
     return parser
 
 
@@ -251,19 +288,19 @@ def cli(argv: List[str] | None = None) -> None:  # pragma: no cover
 
     setup_logging("multimer.log")
 
-    log.info("Reading recipe from %s", args.input)
+    logger.info("Reading recipe from %s", args.input)
     try:
         structures = parse_recipe(args.input)
     except Exception as exc:  # noqa: BLE001 (broad except is fine for CLI)
-        log.error("Failed to parse recipe: %s", exc)
+        logger.error("Failed to parse recipe: %s", exc)
         sys.exit(1)
 
     source_dir = args.source_dir or args.input.parent
-    log.info("Using source dir: %s", source_dir)
+    logger.info("Using source dir: %s", source_dir)
 
     # Show debug params
     for key, value in vars(args).items():
-        log.debug("%s = %s", key, value)
+        logger.debug("%s = %s", key, value)
 
     for struct in tqdm(structures, desc="Building multimers", unit="structure"):
         try:
@@ -272,10 +309,11 @@ def cli(argv: List[str] | None = None) -> None:  # pragma: no cover
                 output_root=args.output_dir,
                 source_root=source_dir,
                 skip_plot=args.skip_plot,
+                parse_pair_descr=args.parse_pair_descr,
             )
-            log.info("Built multimer: %s", meta)
+            logger.info("Built multimer: %s", meta)
         except Exception as exc:  # noqa: BLE001
-            log.error("Failed to build %s: %s", struct.name, exc, exc_info=True)
+            logger.error("Failed to build %s: %s", struct.name, exc, exc_info=True)
 
 
 if __name__ == "__main__":  # pragma: no cover

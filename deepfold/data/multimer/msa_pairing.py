@@ -28,6 +28,7 @@ MSA_GAP_IDX = rc.restypes_with_x_and_gap.index("-")
 SEQUENCE_GAP_CUTOFF = 0.5
 SEQUENCE_SIMILARITY_CUTOFF = 0.9
 
+
 MSA_PAD_VALUES = {
     "msa_all_seq": MSA_GAP_IDX,
     "msa_mask_all_seq": 1,
@@ -67,6 +68,8 @@ SEQ_FEATURES = (
     "atom_indices_to_group_indices",
     "rigid_group_default_frame",
 )
+
+
 TEMPLATE_FEATURES = (
     "template_aatype",
     "template_all_atom_positions",
@@ -284,10 +287,33 @@ def block_diag(*arrs: np.ndarray, pad_value: float = 0.0) -> np.ndarray:
     return diag
 
 
+def _max_normalizer(array: np.ndarray) -> np.ndarray:
+    array = np.where(np.isnan(array), 0.0, array)
+
+    max = array.max()
+    weight = array / (max + 1e-8)
+
+    return weight
+
+
+def _sigmoid_normalizer(array: np.ndarray) -> np.ndarray:
+    w = np.where(np.isnan(array), 0.0, array)
+
+    w -= 0.4
+    w = 1 / (1 + np.exp(-1 * w))
+
+    return w
+
+
+_default_normalizer: callable = _max_normalizer
+
+
 def _correct_post_merged_feats(
     np_example: Mapping[str, np.ndarray],
     np_chains_list: Sequence[Mapping[str, np.ndarray]],
     pair_msa_sequences: bool,
+    use_alignment_score: bool,
+    _normalizer: callable = _default_normalizer,
 ) -> Mapping[str, np.ndarray]:
     """Adds features that need to be computed/recomputed post merging."""
 
@@ -295,25 +321,37 @@ def _correct_post_merged_feats(
     np_example["num_alignments"] = np.asarray(np_example["msa"].shape[0], dtype=np.int32)
 
     if not pair_msa_sequences:
-        # Generate a bias that is 1 for the first row of every block in the
-        # block diagonal MSA - i.e. make sure the cluster stack always includes
-        # the query sequences for each chain (since the first row is the query
-        # sequence).
-        cluster_bias_masks = []
-        for chain in np_chains_list:
-            mask = np.zeros(chain["msa"].shape[0])
-            mask[0] = 1
-            cluster_bias_masks.append(mask)
-
-        np_example["cluster_bias_mask"] = np.concatenate(cluster_bias_masks)
+        if use_alignment_score:
+            # msa_weight_array = np_example["alignment_scores"] / (eps + np_example["alignment_scores"])
+            raise NotImplementedError()
+        else:
+            msa_weight_arrays = []
+            for chain in np_chains_list:
+                msa_weight_array = np.zeros(chain["msa"].shape[0])
+                msa_weight_arrays.append(msa_weight_array)
+            np_example["msa_weight"] = np.concatenate(msa_weight_arrays)
 
         # Initialize Bert mask with masked out off diagonals.
         msa_masks = [np.ones(x["msa"].shape, dtype=np.float32) for x in np_chains_list]
-
         np_example["bert_mask"] = block_diag(*msa_masks, pad_value=0)
     else:
-        np_example["cluster_bias_mask"] = np.zeros(np_example["msa"].shape[0])
-        np_example["cluster_bias_mask"][0] = 1
+        if use_alignment_score:
+            score_arrays = []
+            score_arrays_all_seq = []
+            for chain in np_chains_list:
+                if chain["sym_id"][0] == 1:
+                    score_array = chain["alignment_scores"]
+                    score_arrays.append(_normalizer(score_array))
+
+                    score_array_all_seq = chain["alignment_scores_all_seq"]
+                    score_arrays_all_seq.append(_normalizer(score_array_all_seq))
+
+            msa_weight = np.concatenate(score_arrays, axis=0).mean(axis=1)
+            msa_weight_all_seq = np.concatenate(score_arrays_all_seq, axis=1).mean(axis=1)
+
+            np_example["msa_weight"] = np.concatenate([msa_weight_all_seq, msa_weight])
+        else:
+            np_example["msa_weight"] = np.zeros(np_example["msa"].shape[0])
 
         # Initialize Bert mask with masked out off diagonals.
         msa_masks = [np.ones(x["msa"].shape, dtype=np.float32) for x in np_chains_list]
@@ -347,7 +385,10 @@ def _pad_templates(chains: Sequence[Mapping[str, np.ndarray]], max_templates: in
     return chains
 
 
-def _merge_features_from_multiple_chains(chains: Sequence[Mapping[str, np.ndarray]], pair_msa_sequences: bool) -> Mapping[str, np.ndarray]:
+def _merge_features_from_multiple_chains(
+    chains: Sequence[Mapping[str, np.ndarray]],
+    pair_msa_sequences: bool,
+) -> Mapping[str, np.ndarray]:
     """Merge features from multiple chains.
 
     Args:
@@ -362,6 +403,7 @@ def _merge_features_from_multiple_chains(chains: Sequence[Mapping[str, np.ndarra
     for feature_name in chains[0]:
         feats = [x[feature_name] for x in chains]
         feature_name_split = feature_name.split("_all_seq")[0]
+
         if feature_name_split in MSA_FEATURES:
             if pair_msa_sequences or "_all_seq" in feature_name:
                 merged_example[feature_name] = np.concatenate(feats, axis=1)
@@ -373,6 +415,11 @@ def _merge_features_from_multiple_chains(chains: Sequence[Mapping[str, np.ndarra
             merged_example[feature_name] = np.concatenate(feats, axis=1)
         elif feature_name_split in CHAIN_FEATURES:
             merged_example[feature_name] = np.sum(x for x in feats).astype(np.int32)
+        elif feature_name_split == "alignment_scores":
+            if pair_msa_sequences or "_all_seq" in feature_name:
+                merged_example[feature_name] = np.column_stack(feats)
+            else:
+                merged_example[feature_name] = block_diag(*feats, pad_value=0.0)
         else:
             merged_example[feature_name] = feats[0]
     return merged_example
@@ -399,6 +446,7 @@ def _merge_homomers_dense_msa(chains: Iterable[Mapping[str, np.ndarray]]) -> Seq
         chains = entity_chains[entity_id]
         grouped_chains.append(chains)
     chains = [_merge_features_from_multiple_chains(chains, pair_msa_sequences=True) for chains in grouped_chains]
+
     return chains
 
 
@@ -415,7 +463,12 @@ def _concatenate_paired_and_unpaired_features(example: Mapping[str, np.ndarray])
     return example
 
 
-def merge_chain_features(np_chains_list: List[Mapping[str, np.ndarray]], pair_msa_sequences: bool, max_templates: int) -> Mapping[str, np.ndarray]:
+def merge_chain_features(
+    np_chains_list: List[Mapping[str, np.ndarray]],
+    pair_msa_sequences: bool,
+    max_templates: int,
+    use_alignment_score: bool = False,
+) -> Mapping[str, np.ndarray]:
     """Merges features for multiple chains to single FeatureDict.
 
     Args:
@@ -433,7 +486,12 @@ def merge_chain_features(np_chains_list: List[Mapping[str, np.ndarray]], pair_ms
     np_example = _merge_features_from_multiple_chains(np_chains_list, pair_msa_sequences=False)
     if pair_msa_sequences:
         np_example = _concatenate_paired_and_unpaired_features(np_example)
-    np_example = _correct_post_merged_feats(np_example=np_example, np_chains_list=np_chains_list, pair_msa_sequences=pair_msa_sequences)
+    np_example = _correct_post_merged_feats(
+        np_example=np_example,
+        np_chains_list=np_chains_list,
+        pair_msa_sequences=pair_msa_sequences,
+        use_alignment_score=use_alignment_score,
+    )
 
     return np_example
 

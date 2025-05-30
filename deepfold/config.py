@@ -533,6 +533,7 @@ class FeatureConfig:
             "seq_length",
             "deletion_matrix",
             "num_recycling_iters",
+            "msa_weight",
         ]
     )
 
@@ -800,7 +801,7 @@ MULTIMER_FEATURE_SHAPES = {
     "bert_mask": (NUM_MSA_SEQ, NUM_RES),
     "chi_angles": (NUM_RES, 4),
     "chi_mask": (NUM_RES, 4),
-    "cluster_bias_mask": (NUM_MSA_SEQ),
+    "msa_weight": (NUM_MSA_SEQ,),
     "cluster_deletion_mean": (NUM_MSA_SEQ, NUM_RES),
     "cluster_profile": (NUM_MSA_SEQ, NUM_RES, 23),
     "deletion_matrix": (NUM_MSA_SEQ, NUM_RES),

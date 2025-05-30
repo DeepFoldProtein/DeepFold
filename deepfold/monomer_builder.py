@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import re
-import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -276,6 +274,7 @@ def build_input_features(
     template_mode: str = "auto",
     seed: int | None = None,
     offset: int = 0,
+    parse_descr: bool = False,
 ) -> None:
     """Standalone function that reproduces the CLI behaviour."""
 
@@ -320,6 +319,7 @@ def build_input_features(
             max_template_hits=max_template_hits,
             pdb_mmcif_dirpath=pdb_mmcif_dir,
             kalign_executable_path=kalign_bin,
+            pdb_obsolete_filepath=pdb_obsolete_path,
             verbose=True,
         )
 
@@ -382,7 +382,12 @@ def build_input_features(
                 raise RuntimeError(f"Unsupported alignment extension: {suffix}")
             a3m_strings.append(a3m_str)
 
-    msa_feats = create_msa_features(a3m_strings, sequence=query_seq, use_identifiers=True)
+    msa_feats = create_msa_features(
+        a3m_strings,
+        sequence=query_seq,
+        use_identifiers=True,
+        use_scores=parse_descr,
+    )
 
     # ------------------------------------------------------------------- Dump
     log.info("Writing feature pickle to %s", output_path)
@@ -412,6 +417,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p("--kalign-bin", default="kalign", help="Kalign executable")
     p("--seed", type=int, help="Random seed for shuffling template hits")
     p("--offset", type=int, default=0, help="Residue index offset")
+    p("--parse-descr", action="store_true", help="Use alignment score")
     return parser
 
 
@@ -435,6 +441,7 @@ def cli(argv: List[str] | None = None) -> None:  # pragma: no cover
         kalign_bin=args.kalign_bin,
         seed=args.seed,
         offset=args.offset,
+        parse_descr=args.parse_descr,
     )
 
 

@@ -478,12 +478,10 @@ def pad_to_schema_shape(
 
         tensor_shape = list(tensor.shape)
         schema_shape = feature_schema_shapes[key]
-        assert len(tensor_shape) == len(schema_shape), key
+        assert len(tensor_shape) == len(schema_shape), f"{key}: {tuple(tensor_shape)} != {tuple(schema_shape)}"
 
         pad_shape = [pad_size_map.get(dim_schema, dim_size) for (dim_schema, dim_size) in zip(schema_shape, tensor_shape)]
-
         padding = [(0, pad_size - dim_size) for pad_size, dim_size in zip(pad_shape, tensor_shape)]
-
         padding.reverse()
         padding = list(itertools.chain(*padding))
 

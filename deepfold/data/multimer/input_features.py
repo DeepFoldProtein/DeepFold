@@ -23,7 +23,7 @@ REQUIRED_FEATURES = frozenset(
         "assembly_num_chains",
         "asym_id",
         "bert_mask",
-        "cluster_bias_mask",
+        "msa_weight",
         "deletion_matrix",
         "deletion_mean",
         "entity_id",
@@ -103,8 +103,10 @@ def process_single_chain(
 ) -> dict:
     """Process a single chain features."""
     new_chain_features = copy.deepcopy(chain_features)
+
     if a3m_strings_for_paring is None:
         a3m_strings_for_paring = [""]
+
     if not is_homomer_or_monomer:
         all_seq_msa_features = create_all_seq_msa_features_from_a3m(
             a3m_strings_for_paring,
@@ -115,6 +117,10 @@ def process_single_chain(
             for k, v in all_seq_msa_features.items():
                 all_seq_msa_features[k] = np.concatenate([all_msa_features[k], v], axis=0)
         new_chain_features.update(all_seq_msa_features)
+
+    if "alignment_scores" not in new_chain_features:
+        new_chain_features["alignment_scores"] = np.zeros(new_chain_features["msa"].shape[0])
+
     return new_chain_features
 
 
@@ -162,7 +168,7 @@ def pad_msa(example: dict, min_num_cluster) -> dict:
     if num_seq < min_num_cluster:
         for feat in ("msa", "deletion_matrix", "bert_mask", "msa_mask"):
             example[feat] = np.pad(example[feat], ((0, min_num_cluster - num_seq), (0, 0)))
-        example["cluster_bias_mask"] = np.pad(example["cluster_bias_mask"], ((0, min_num_cluster - num_seq),))
+        example["msa_weight"] = np.pad(example["msa_weight"], ((0, min_num_cluster - num_seq),))
     return example
 
 
@@ -172,11 +178,7 @@ def create_all_seq_msa_features_from_a3m(
 ) -> dict:
     """Get MSA features for paring."""
 
-    all_seq_features = create_msa_features(
-        list(a3m_strings),
-        sequence=sequence,
-        use_identifiers=True,
-    )
+    all_seq_features = create_msa_features(list(a3m_strings), sequence=sequence, use_identifiers=True)
 
     species_id = [get_identifiers(s) for s in all_seq_features["msa_identifiers"]]
     all_seq_features["msa_identifiers"] = np.array(species_id, dtype=np.object_)
@@ -187,9 +189,7 @@ def create_all_seq_msa_features_from_a3m(
     return feats
 
 
-def create_all_seq_msa_features(
-    all_seq_features: dict,
-) -> dict:
+def create_all_seq_msa_features(all_seq_features: dict) -> dict:
     species_id = [get_identifiers(s) for s in all_seq_features["msa_identifiers"]]
     all_seq_features["msa_identifiers"] = np.array(species_id, dtype=np.object_)
 
@@ -214,10 +214,10 @@ def create_multimer_features(
     sequence: str | None = None,
 ) -> dict:
     """Create multimer features from paired MSA strings."""
-    valid_feats = (*msa_pairing.MSA_FEATURES, "msa_identifiers")
+    valid_feats = (*msa_pairing.MSA_FEATURES, "msa_identifiers", "alignment_scores")
     feats = {
         f"{k}_all_seq": v
-        for k, v in create_msa_features(paired_a3m_strings, sequence=sequence, use_identifiers=True, deduplicate=False).items()
+        for k, v in create_msa_features(paired_a3m_strings, sequence=sequence, use_identifiers=True, deduplicate=False, use_scores=True).items()
         if k in valid_feats
     }
 
@@ -230,6 +230,7 @@ def process_multimer_features(
     pair_with_identifier: bool = False,
     a3m_strings_with_identifiers: Mapping[str, str] | None = None,
     paired_a3m_strings: Mapping[str, str] | None = None,
+    use_paired_a3m_descr: bool = False,
     min_num_clusters: int = 508,
 ) -> dict:
     """Create a multimer input features."""
@@ -305,10 +306,11 @@ def process_multimer_features(
             np_chains_list=np_chains_list,
             pair_msa_sequences=True,
             max_templates=MAX_TEMPLATES,
+            use_alignment_score=use_paired_a3m_descr,
         )
         example = process_final(np_example)
     else:
-        example = pair_and_merge(all_chain_features)
+        example = pair_and_merge(all_chain_features, use_alignment_score=False)
 
     example = pad_msa(example, min_num_clusters)
 
@@ -322,7 +324,10 @@ def _is_homomer_or_monomer(chains: Iterable[dict]) -> bool:
     return num_unique_chains == 1
 
 
-def pair_and_merge(all_chain_features: MutableMapping[str, dict]) -> dict:
+def pair_and_merge(
+    all_chain_features: MutableMapping[str, dict],
+    use_alignment_score: bool = False,
+) -> dict:
     """Runs processing on features to augment, pair and merge.
 
     Args:
@@ -353,9 +358,7 @@ def pair_and_merge(all_chain_features: MutableMapping[str, dict]) -> dict:
     common_features = set([*np_chains_list[0]]).intersection(*np_chains_list)
     np_chains_list = [{k: v for k, v in chain.items() if k in common_features} for chain in np_chains_list]
     np_example = msa_pairing.merge_chain_features(
-        np_chains_list=np_chains_list,
-        pair_msa_sequences=pair_msa_sequences,
-        max_templates=MAX_TEMPLATES,
+        np_chains_list=np_chains_list, pair_msa_sequences=pair_msa_sequences, max_templates=MAX_TEMPLATES, use_alignment_score=use_alignment_score
     )
     np_example = process_final(np_example)
 
@@ -424,18 +427,17 @@ def _crop_single_chain(chain: dict, msa_crop_size: int, pair_msa_sequences: bool
     for k in chain:
         k_split = k.split("_all_seq")[0]
         if k_split in msa_pairing.TEMPLATE_FEATURES:
-            chain[k] = chain[k][:templates_crop_size, :]
-        elif k_split in msa_pairing.MSA_FEATURES:
+            chain[k] = chain[k][:templates_crop_size, ...]
+        elif k_split in (*msa_pairing.MSA_FEATURES, "alignment_scores"):
             if "_all_seq" in k and pair_msa_sequences:
-                chain[k] = chain[k][:msa_crop_size_all_seq, :]
+                chain[k] = chain[k][:msa_crop_size_all_seq, ...]
             else:
-                chain[k] = chain[k][:msa_crop_size, :]
+                chain[k] = chain[k][:msa_crop_size, ...]
 
     chain["num_alignments"] = np.asarray(msa_crop_size, dtype=np.int32)
     if include_templates:
         chain["num_templates"] = np.asarray(templates_crop_size, dtype=np.int32)
-    if pair_msa_sequences:
-        chain["num_alignments_all_seq"] = np.asarray(msa_crop_size_all_seq, dtype=np.int32)
+
     return chain
 
 

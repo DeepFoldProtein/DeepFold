@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, Sequence
 
 import torch
@@ -6,8 +7,9 @@ import torch.nn.functional as F
 from deepfold.common import residue_constants as rc
 from deepfold.config import NUM_RES
 from deepfold.data.process.transforms import curry1
-from deepfold.utils.random import TORCH_SEED_MODULUS
 from deepfold.utils.tensor_utils import masked_mean
+
+logger = logging.getLogger(__name__)
 
 
 def gumbel_noise(
@@ -205,7 +207,6 @@ def sample_msa(
     max_msa_clusters: int,
     max_extra_msa_seq: int,
     seed: int | None = None,
-    inf: float = 1e6,
 ):
     """Sample MSA randomly, remaining sequences are stored as `extra_*`.
 
@@ -215,22 +216,23 @@ def sample_msa(
     Returns:
         Protein with sampled msa.
     """
-    g = None
     assert seed is not None
     g = torch.Generator(device=batch["msa"].device)
     g.manual_seed(seed)
 
-    # Sample uniformly among sequences with at least one non-masked position.
-    logits = (torch.clamp(torch.sum(batch["msa_mask"], dim=-1), 0.0, 1.0) - 1.0) * inf
-    # The cluster_bias_mask can be used to preserve the first row (target
-    # sequence) for each chain, for example.
-    if "cluster_bias_mask" not in batch:
-        cluster_bias_mask = F.pad(batch["msa"].new_zeros(batch["msa"].shape[0] - 1), (1, 0), value=1.0)
+    mask = torch.clamp(torch.sum(batch["msa_mask"], dim=-1), 0.0, 1.0)
+    if "msa_weight" in batch:
+        assert mask.shape == batch["msa_weight"].shape
+        prob = batch["msa_weight"] * mask
     else:
-        cluster_bias_mask = batch["cluster_bias_mask"]
+        prob = mask
+    prob[0] = 0.0
+    prob /= prob.sum() + 1e-6
 
-    logits += cluster_bias_mask * inf
-    index_order = gumbel_argsort_sample_idx(logits, generator=g)
+    picked = torch.multinomial(prob, prob.numel() - 1, replacement=False, generator=g)
+    dims = [*prob.shape[:-1], 1]
+    index_order = torch.cat([torch.zeros(dims, dtype=torch.long, device=prob.device), picked])
+
     sel_idx = index_order[:max_msa_clusters]
     extra_idx = index_order[max_msa_clusters:][:max_extra_msa_seq]
 
