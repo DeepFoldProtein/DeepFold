@@ -97,7 +97,7 @@ def _validate_struct(struct: dict) -> None:
 def _parse_templates(
     templates: list[dict],
     plddt_cutoff: float = 70.0,
-) -> dict:
+) -> dict | None:
     template_aatype = []
     template_all_atom_positions = []
     template_all_atom_mask = []
@@ -109,21 +109,29 @@ def _parse_templates(
 
         seq = rc.aatype_to_str_sequence(prot.aatype)
         aatype = rc.sequence_to_onehot(seq, rc.HHBLITS_AA_TO_ID)
-        template_aatype.append(aatype)
-
-        template_all_atom_positions.append(prot.atom_positions)
 
         mask = prot.atom_mask * (prot.b_factors > plddt_cutoff)
         if "regions" in dic:
             for low, high in dic["regions"]:
                 mask[low - 1 : high, :] *= 1
-        template_all_atom_mask.append(mask)
 
-    return {
-        "template_aatype": np.stack(template_aatype),
-        "template_all_atom_positions": np.stack(template_all_atom_positions),
-        "template_all_atom_mask": np.stack(template_all_atom_mask),
-    }
+        if mask[:, 1].sum() == 0:
+            logger.info("No template parsed from %s", pdb_path)
+            continue
+
+        template_all_atom_positions.append(prot.atom_positions)
+        template_all_atom_mask.append(mask)
+        template_aatype.append(aatype)
+
+    if len(template_all_atom_mask):
+        return {
+            "template_aatype": np.stack(template_aatype),
+            "template_all_atom_positions": np.stack(template_all_atom_positions),
+            "template_all_atom_mask": np.stack(template_all_atom_mask),
+        }
+    else:
+        logger.warning("BE CAREFUL! No template parsed")
+        return None
 
 
 def parse_recipe(recipe: str | Path) -> List[Structure]:
