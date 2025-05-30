@@ -382,6 +382,8 @@ def build_input_features(
                 raise RuntimeError(f"Unsupported alignment extension: {suffix}")
             a3m_strings.append(a3m_str)
 
+    a3m_strings = list(map(lambda s: s.strip(" \n\r\t\x00"), a3m_strings))
+
     msa_feats = create_msa_features(
         a3m_strings,
         sequence=query_seq,
