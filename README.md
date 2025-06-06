@@ -2,18 +2,33 @@
 
 ## Features
 
-(TBA)
-
 ## Installation
 
-```bash
-git clone https://github.com/DeepFoldProtein/DeepFold.git
-cd DeepFold
-pip install .
-```
+### DeepFold
 
 ```bash
 pip install git+https://github.com/DeepFoldProtein/DeepFold@main
+```
+
+### Kalign2
+
+```bash
+mkdir -p kalign2
+cd kalign2
+wget -O current.tar.gz http://msa.sbc.su.se/downloads/kalign/current.tar.gz
+tar xfz current.tar.gz
+./configure
+make
+```
+
+### DSSP
+
+```bash
+git clone https://github.com/PDB-REDO/dssp.git
+cd dssp
+cmake -S . -B build
+cmake --build build
+cmake --install build
 ```
 
 ## Monomer featurization
