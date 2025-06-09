@@ -18,8 +18,6 @@ from deepfold.utils.func_utils import ignore_unmatched_kwargs
 
 logger = logging.getLogger(__name__)
 
-_NPZ_KEY_PREFIX = "alphafold/alphafold_iteration/"
-
 
 def reshape_weight(x: np.ndarray) -> np.ndarray:
     len_shape = len(x.shape)
@@ -52,12 +50,23 @@ class Param:
     swap: bool = False
 
 
-def _process_translations_dict(d, top_layer=True):
+def _process_translations_dict(
+    d,
+    top_layer=True,
+    npz_key_prefix: str = "alphafold/alphafold_iteration/",
+):
     flat = {}
     for k, v in d.items():
         if type(v) == dict:
-            prefix = _NPZ_KEY_PREFIX if top_layer else ""
-            sub_flat = {(prefix + "/".join([k, k_prime])): v_prime for k_prime, v_prime in _process_translations_dict(v, top_layer=False).items()}
+            prefix = npz_key_prefix if top_layer else ""
+            sub_flat = {
+                (prefix + "/".join([k, k_prime])): v_prime
+                for k_prime, v_prime in _process_translations_dict(
+                    v,
+                    top_layer=False,
+                    npz_key_prefix=npz_key_prefix,
+                ).items()
+            }
             flat.update(sub_flat)
         else:
             k = "/" + k if not top_layer else k
@@ -146,12 +155,11 @@ def import_jax_weights_(
 
     # Multimer model can predict TM score.
     enable_ptm |= is_multimer
-
+    NPZ_KEY_PREFIX = "alphafold/alphafold_iteration/"
     data = np.load(npz_path, allow_pickle=True)
     if "arr_0" in data:
         data = data["arr_0"].flat[0]
-        global _NPZ_KEY_PREFIX
-        _NPZ_KEY_PREFIX = "deepfold_batch/deepfold/deepfold_iteration/"
+        NPZ_KEY_PREFIX = "deepfold_batch/deepfold/deepfold_iteration/"
         keys = list(data.keys())
         for key in keys:
             for subkey in data[key]:
@@ -536,7 +544,7 @@ def import_jax_weights_(
     # fmt: on
 
     # Flatten keys and insert missing key prefixes
-    flat = _process_translations_dict(translations)
+    flat = _process_translations_dict(translations, npz_key_prefix=NPZ_KEY_PREFIX)
     # Sanity check
     keys = list(data.keys())
     flat_keys = list(flat.keys())
