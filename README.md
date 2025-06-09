@@ -28,7 +28,6 @@ git clone https://github.com/PDB-REDO/dssp.git
 cd dssp
 cmake -S . -B build
 cmake --build build
-cmake --install build
 ```
 
 ## Monomer featurization
