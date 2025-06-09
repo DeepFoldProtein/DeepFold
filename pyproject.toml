@@ -1,17 +1,17 @@
 [project]
 name = "deepfold"
-version = "1.0.3"
+version = "1.0.4"
 description = "DeepFold"
 authors = [{ name = "Minsoo Kim", email = "vv137.xyz@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "setuptools (>=75.8.0,<76.0.0)",
-    "torch (>=2.6.0,<3.0.0)",
+    "torch (>=2.7.1,<3.0.0)",
     "jaxtyping (>=0.3.1,<0.4.0)",
     "numpy (>=2.2.2,<3.0.0)",
     "scipy (>=1.15.1,<2.0.0)",
-    "pandas (>=2.2.3,<3.0.0)",
+    "pandas (>=2.3.0,<3.0.0)",
     "matplotlib (>=3.10.0,<4.0.0)",
     "biopython (==1.83)",
     "biotite (>=1.2.0,<2.0.0)",
@@ -23,7 +23,7 @@ dependencies = [
     "openmm-cuda-12 (>=8.2.0,<9.0.0)",
     "pyyaml (>=6.0.2,<7.0.0)",
     "requests (>=2.32.3,<3.0.0)",
-    "mashumaro (>=3.15,<4.0)",
+    "mashumaro (>=3.16,<4.0)",
     "beartype (>=0.20.2,<0.21.0)",
     "einops (>=0.8.1,<0.9.0)",
     "platformdirs (>=4.3.8,<5.0.0)",
