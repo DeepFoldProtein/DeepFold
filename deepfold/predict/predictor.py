@@ -5,9 +5,7 @@ from __future__ import annotations
 import gc
 import json
 import logging
-import os
 import random
-import signal
 import time
 from typing import Any, Callable, Optional
 
@@ -21,6 +19,8 @@ from deepfold.config import MONOMER_OUTPUT_SHAPES, MULTIMER_OUTPUT_SHAPES, Alpha
 from deepfold.data.process.pipeline import example_to_features
 from deepfold.distributed import model_parallel as mp
 from deepfold.modules import inductor as df_inductor
+from deepfold.predict.hooks import BaseHooks, DefaultHooks
+from deepfold.predict.presets import get_preset_opts
 from deepfold.utils.crop_utils import unpad_to_schema_shape_
 from deepfold.utils.file_utils import load_pickle
 from deepfold.utils.import_utils import import_jax_weights_
@@ -28,9 +28,6 @@ from deepfold.utils.log_utils import setup_logging
 from deepfold.utils.random import NUMPY_SEED_MODULUS
 from deepfold.utils.tensor_utils import tensor_tree_map
 from deepfold.utils.torch_utils import disable_tf32, enable_tf32
-
-from .hooks import BaseHooks, DefaultHooks
-from .presets import get_preset_opts
 
 logger = logging.getLogger(__name__)
 
